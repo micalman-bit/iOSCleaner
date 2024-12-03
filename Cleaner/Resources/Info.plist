@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>To analyze similar photos and videos, allow the &apos;Photo Manager&apos; to access your gallery.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>To analyze similar photos and videos, allow the &apos;Photo Manager&apos; to access your gallery.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>&apos;One Cleaner&apos; would like to access your Contacts.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>&apos;One Cleaner&apos; Would Like Full Access to Your Calendar.</string>
+</dict>
 </plist>

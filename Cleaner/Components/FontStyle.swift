@@ -13,7 +13,10 @@ public enum FontStyle {
     
     /// 24, semibold
     case hero
-    
+
+    /// 20, semibold
+    case textBig
+
     /// 18, semibold
     case h1
     
@@ -68,6 +71,7 @@ public enum FontStyle {
     var fontSwiftUI: Font {
         switch self {
         case .hero: return .system(size: 24, weight: .semibold)
+        case .textBig: return .system(size: 20, weight: .semibold)
         case .h1: return .system(size: 18, weight: .semibold)
         case .h2: return .system(size: 16, weight: .semibold)
         case .textBold: return .system(size: 14, weight: .semibold)
@@ -96,6 +100,7 @@ public enum FontStyle {
         case .hero:
             return 5
         case .h1,
+                .textBig,
                 .h2,
                 .price:
             return 4
@@ -117,6 +122,7 @@ public enum FontStyle {
     var weightSwiftUI: Font.Weight {
         switch self {
         case .hero,
+                .textBig,
                 .h1,
                 .h2,
                 .textBold,
