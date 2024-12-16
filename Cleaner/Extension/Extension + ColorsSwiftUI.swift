@@ -19,6 +19,8 @@ extension Color {
         static let textDark = color(white: 51)
         /// 153 153 153
         static let textGray = color(white: 153)
+        // 46 80 151 0.8
+        static let ligtBlue = color(red: 46, green: 80, blue: 151, alpha: 0.8)
         /// 204 204 204
         static let textGhost = color(white: 204)
         /// 19 134 255
@@ -41,6 +43,10 @@ extension Color {
         static let blue = color(red: 237, green: 250, blue: 255)
         /// 229 239 255
         static let blueLight = color(red: 229, green: 239, blue: 255)
+        /// 235 240 255
+        static let whiteBlue = color(red: 235, green: 240, blue: 255)
+        /// 30 113 255
+        static let darkBlue = color(red: 30, green: 113, blue: 255)
         /// 246 255 238
         static let green = color(red: 246, green: 255, blue: 238)
         /// 255 242 240
@@ -148,10 +154,15 @@ extension Color {
             color(red: 248, green: 229, blue: 252),
             color(red: 249, green: 222, blue: 207)
         ]
-
+        /// 255 128 56 -> 255 80 56
         static let proSubscriptionLogo = [
             color(red: 255, green: 128, blue: 56),
             color(red: 255, green: 80, blue: 56)
+        ]
+        /// 32 188 255 -> 32 110 255
+        static let bestOfferLogo = [
+            color(red: 32, green: 188, blue: 255),
+            color(red: 32, green: 110, blue: 255)
         ]
     }
 

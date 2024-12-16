@@ -10,7 +10,10 @@ import SwiftUI
 public enum FontStyle {
     /// 60, bold
     case priceDynamic
-    
+
+    /// 22, semibold
+    case onboardingTitle
+
     /// 24, semibold
     case hero
 
@@ -71,6 +74,7 @@ public enum FontStyle {
     var fontSwiftUI: Font {
         switch self {
         case .hero: return .system(size: 24, weight: .semibold)
+        case .onboardingTitle: return .system(size: 22, weight: .semibold)
         case .textBig: return .system(size: 20, weight: .semibold)
         case .h1: return .system(size: 18, weight: .semibold)
         case .h2: return .system(size: 16, weight: .semibold)
@@ -109,6 +113,7 @@ public enum FontStyle {
                 .flatCount:
             return 2.5
         case .semibold,
+                .onboardingTitle,
                 .tableText,
                 .smallText,
                 .badgeText,
@@ -122,6 +127,7 @@ public enum FontStyle {
     var weightSwiftUI: Font.Weight {
         switch self {
         case .hero,
+                .onboardingTitle,
                 .textBig,
                 .h1,
                 .h2,

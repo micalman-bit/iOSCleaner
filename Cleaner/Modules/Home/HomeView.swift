@@ -52,6 +52,7 @@ struct HomeView: View {
                 .scaledToFit()
                 .frame(width: 40, height: 40)
                 .padding(leading: 24)
+                .asButton(style: .scale(.heavy), action: viewModel.didTapSetting)
             
             Spacer(minLength: .zero)
             
@@ -80,6 +81,7 @@ struct HomeView: View {
                 .background(Color.white)
                 .cornerRadius(20)
                 .padding(trailing: 24)
+                .asButton(style: .scale(.heavy), action: viewModel.didTapSubscription)
 
 
             case false:
@@ -104,6 +106,7 @@ struct HomeView: View {
                     )
                 )
                 .cornerRadius(20)
+                .asButton(style: .scale(.heavy), action: viewModel.didTapSubscription)
             }
             
         }
@@ -215,7 +218,7 @@ struct HomeView: View {
 
                     makeButtonOfItemView(
                         isEnabled: viewModel.isСontactsAvailable,
-                        isLoading: viewModel.isCalendarLoaderActive,
+                        isLoading: viewModel.isСontactsLoaderActive,
                         title: viewModel.contactsText
                     )
                 }

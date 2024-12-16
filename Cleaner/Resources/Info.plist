@@ -10,5 +10,7 @@
 	<string>&apos;One Cleaner&apos; would like to access your Contacts.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>&apos;One Cleaner&apos; Would Like Full Access to Your Calendar.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Your data will gauge advertising effectiveness.</string>
 </dict>
 </plist>

@@ -12,7 +12,9 @@ import UIKit
 
 final class HomeViewModel: ObservableObject {
     
-    @Published var isHaveSubscription = true
+    // MARK: - Published Properties
+
+    @Published var isHaveSubscription = true //UserDefaultsService.isHaveSubscribe
     
     /// Header
     @Published var totalSpaceGB: Double = 0.0
@@ -55,13 +57,10 @@ final class HomeViewModel: ObservableObject {
     ) {
         self.service = service
         self.router = router
-        
-        print("UIDevice.current.name")
-        print(UIDevice.current.name)
-        print("UIDevice.current.systemName")
-        print(UIDevice.current.systemName)
-        print("UIDevice.current.model")
-        print(UIDevice.current.model)
+                
+        self.isPhonoAndVideoLoaderActive = true
+        self.isСontactsLoaderActive = true
+        self.isCalendarLoaderActive = true
         
         calculateStorage()
         requestPhotoLibraryAccess()
@@ -74,8 +73,7 @@ final class HomeViewModel: ObservableObject {
             showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
             return
         }
-        
-        print("action didTapPhotoAndVideo")
+        router.openSimilarPhotos()
     }
     
     func didTapContact() {
@@ -96,6 +94,15 @@ final class HomeViewModel: ObservableObject {
         print("action didTapCalendar")
     }
 
+    func didTapSetting() {
+        router.openSettings()
+    }
+    
+    func didTapSubscription() {
+        UserDefaultsService.isHaveSubscribe.toggle()
+        isHaveSubscription.toggle()
+    }
+    
     func getSmile() -> String {
         switch progress {
         case 0.0...0.49: return "😎"
@@ -196,7 +203,6 @@ final class HomeViewModel: ObservableObject {
         
         do {
             try contactStore.enumerateContacts(with: request) { contact, _ in
-                // Уникальный ключ контакта: имя, фамилия, первый номер телефона
                 let key = "\(contact.givenName) \(contact.familyName) \(contact.phoneNumbers.first?.value.stringValue ?? "")"
                 
                 if contactsSet.contains(key) {
@@ -205,18 +211,22 @@ final class HomeViewModel: ObservableObject {
                     contactsSet.insert(key)
                 }
             }
-            self.duplicateContactsCount = duplicateCount
-            self.contactsCount = contactsSet.count
-            print("Количество дубликатов: \(duplicateCount)")
-            print("Общее количество контактов: \(contactsSet.count)")
-            
-            self.contactsCount = duplicateCount
-            self.contactsText = "\(duplicateCount)"
-            self.isСontactsAvailable = true
-            self.isСontactsLoaderActive = false
+            DispatchQueue.main.async {
+                self.duplicateContactsCount = duplicateCount
+                self.contactsCount = contactsSet.count
+                self.contactsText = "\(duplicateCount)"
+                self.isСontactsAvailable = true
+                self.isСontactsLoaderActive = false
+                
+                self.clearOldCalendarEvents()
+            }
         } catch {
-            self.isСontactsAvailable = false
-            self.isСontactsLoaderActive = false
+            DispatchQueue.main.async {
+                self.isСontactsAvailable = false
+                self.isСontactsLoaderActive = false
+                
+                self.clearOldCalendarEvents()
+            }
             print("Error fetching contacts: \(error.localizedDescription)")
         }
     }
@@ -283,7 +293,7 @@ final class HomeViewModel: ObservableObject {
 
         let alert = UIAlertController(
             title: "Permission Required",
-            message: "The app needs access to your photo library to analyze photos and videos. Please enable access in Settings.",
+            message: message,
             preferredStyle: .alert
         )
 
