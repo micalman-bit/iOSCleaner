@@ -23,6 +23,7 @@ enum SimilarPhotosAssembly {
 }
 
 struct SimilarPhotosView: View {
+    
     // MARK: - Private Properties
 
     @ObservedObject private var viewModel: SimilarPhotosViewModel
@@ -40,15 +41,19 @@ struct SimilarPhotosView: View {
         VStack {
             makeHeaderView()
             
-            if false {//viewModel.isAnalyzing {
+            if viewModel.isAnalyzing {
                 ProgressView("Analyzing Photos...")
             } else {
                 makePhotosListView()
             }
+            
             Spacer()
         }
         .fullScreenCover(isPresented: $showingPhotoViewer) {
-            PhotoViewerView(group: viewModel.groupedPhotos.first ?? [], selectedPhotos: .constant(Set<String>()))
+            PhotoViewerView(
+                group: viewModel.groupedPhotos.first ?? [],
+                selectedPhotos: .constant(Set<String>())
+            )
         }
     }
     
@@ -60,6 +65,7 @@ struct SimilarPhotosView: View {
                     .scaledToFit()
                     .frame(width: 12, height: 20)
                     .foregroundColor(.blue)
+                
                 Text("Back")
                     .foregroundColor(.blue)
                     .font(.system(size: 17))
@@ -81,6 +87,15 @@ struct SimilarPhotosView: View {
     }
     
     @ViewBuilder private func makePhotosListView() -> some View {
+        
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Similar Photos")
+                .font(.system(size: 32, weight: .semibold))
+            
+            Text("644 photos")
+                .textStyle(.price, textColor: .Typography.textGray)
+        }
+        
         List {
             ForEach(viewModel.groupedPhotos.indices, id: \.self) { index in
                 Section(header: Text("\(viewModel.groupedPhotos[index].count) similar")) {
@@ -95,12 +110,10 @@ struct SimilarPhotosView: View {
             }
         }
         .onAppear {
-            print("Grouped Photos: \(viewModel.groupedPhotos)") // Отладочный вывод
+            print("Grouped Photos: \(viewModel.groupedPhotos)")
         }
-        .background(Color.red)
+        .padding(top: 24)
     }
-    
-    
 }
 
 struct PhotoThumbnailView: View {
@@ -114,12 +127,12 @@ struct PhotoThumbnailView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 80, height: 80)
+                    .frame(width: 176, height: 178)
                     .clipped()
             } else {
                 Rectangle()
                     .fill(Color.gray)
-                    .frame(width: 80, height: 80)
+                    .frame(width: 176, height: 178)
             }
         }
         .onAppear {
