@@ -20,11 +20,12 @@ final class AssetManagementService {
     private let dispatchSemaphore = DispatchSemaphore(value: 2)
 
     private var featurePrintCache: [String: VNFeaturePrintObservation] = [:]
-    private let similarityThreshold: Float = 0.8
-    private let assetTimeInterval: TimeInterval = 300 // 5 minutes
+    private let similarityThreshold: Float = 0.9 // Порог для сходства изображений
+    private let assetTimeInterval: TimeInterval = 300 // 5 минут для группировки по времени
 
     // MARK: - Fetch and Analyze Photos
 
+    /// Запрашивает доступ к фото, получает изображения и анализирует их на дубликаты
     func fetchAndAnalyzePhotos(completion: @escaping ([[PHAsset]]) -> Void) {
         PHPhotoLibrary.requestAuthorization { status in
             guard status == .authorized else {
@@ -33,6 +34,7 @@ final class AssetManagementService {
                 return
             }
 
+            // Получаем все изображения из медиатеки
             let fetchOptions = PHFetchOptions()
             let fetchResult = PHAsset.fetchAssets(with: fetchOptions)
             let assets = fetchResult.objects(at: IndexSet(0..<fetchResult.count))
@@ -43,11 +45,14 @@ final class AssetManagementService {
                 print("Fetched \(assets.count) assets from the photo library.")
             }
 
+            // Начинаем анализ изображений
             self.analyzePhotos(assets: assets, completion: completion)
         }
     }
 
+    /// Анализирует изображения и группирует дубликаты
     private func analyzePhotos(assets: [PHAsset], completion: @escaping ([[PHAsset]]) -> Void) {
+        // Сортировка изображений по дате создания
         let sortedAssets = assets.sorted { $0.creationDate ?? Date() < $1.creationDate ?? Date() }
         var groupedPhotos: [[PHAsset]] = []
         let dispatchGroup = DispatchGroup()
@@ -55,6 +60,8 @@ final class AssetManagementService {
 
         for asset in sortedAssets {
             dispatchGroup.enter()
+            
+            // Загружаем изображение для анализа
             self.loadImage(for: asset) { [weak self] image in
                 guard let self = self, let image = image else {
                     print("Failed to load image for asset: \(asset.localIdentifier)")
@@ -65,39 +72,57 @@ final class AssetManagementService {
                 var currentGroup: [PHAsset] = []
 
                 syncQueue.sync {
-                    // Проверяем фото на дубликаты
+                    // Проверяем дубликаты среди уже сгруппированных фотографий
                     for group in groupedPhotos {
                         if let firstAsset = group.first {
-                            if let groupImage = self.loadImageSync(for: firstAsset),
-                               self.areImagesVisuallySimilar(image1: image, image2: groupImage) ||
-                               self.areImagesEqual(image, groupImage) ||
-                               self.compareUsingHash(image, groupImage) {
-                                currentGroup = group
-                                break
+                            if let groupImage = self.loadImageSync(for: firstAsset) {
+                                if self.areImagesVisuallySimilar(image1: image, image2: groupImage) {
+                                    print("[DEBUG] Visually similar: \(asset.localIdentifier) with \(firstAsset.localIdentifier)")
+                                    currentGroup = group
+                                    break
+                                } else if self.areImagesEqual(image, groupImage) {
+                                    print("[DEBUG] Exact equality match: \(asset.localIdentifier) with \(firstAsset.localIdentifier)")
+                                    currentGroup = group
+                                    break
+                                } else if self.compareUsingHash(image, groupImage) {
+                                    print("[DEBUG] Hash-based match: \(asset.localIdentifier) with \(firstAsset.localIdentifier)")
+                                    currentGroup = group
+                                    break
+                                }
                             }
                         }
                     }
 
-                    // Если дубликаты найдены, добавляем в существующую группу
                     if !currentGroup.isEmpty {
+                        // Добавляем в существующую группу
                         if !currentGroup.contains(asset) {
                             currentGroup.append(asset)
                             groupedPhotos[groupedPhotos.firstIndex(of: currentGroup)!] = currentGroup
                             print("Duplicate found: Asset \(asset.localIdentifier) added to existing group.")
                         }
                     } else {
-                        // Если дубликаты не найдены, создаем новую группу
+                        // Создаем новую группу и ищем дубликаты среди оставшихся изображений
                         var duplicates: [PHAsset] = []
                         for otherAsset in sortedAssets {
                             if otherAsset == asset { continue }
-                            if let otherImage = self.loadImageSync(for: otherAsset),
-                               self.areImagesVisuallySimilar(image1: image, image2: otherImage) ||
-                               self.areImagesEqual(image, otherImage) ||
-                               self.compareUsingHash(image, otherImage) {
-                                duplicates.append(otherAsset)
+                            if let otherImage = self.loadImageSync(for: otherAsset) {
+                                if self.areImagesVisuallySimilar(image1: image, image2: otherImage) {
+                                    print("[DEBUG] New group - Visual similarity: \(asset.localIdentifier) with \(otherAsset.localIdentifier)")
+                                    duplicates.append(otherAsset)
+                                } else if self.areImagesEqual(image, otherImage) {
+                                    print("[DEBUG] New group - Exact equality: \(asset.localIdentifier) with \(otherAsset.localIdentifier)")
+                                    duplicates.append(otherAsset)
+                                } else if self.compareUsingHash(image, otherImage) {
+                                    print("[DEBUG] New group - Hash-based match: \(asset.localIdentifier) with \(otherAsset.localIdentifier)")
+                                    duplicates.append(otherAsset)
+                                } else if let similarityScore = self.calculateImageSimilarity(image1: image, image2: otherImage), similarityScore < self.similarityThreshold {
+                                    print("[DEBUG] New group - FeaturePrint match with score \(similarityScore): \(asset.localIdentifier) and \(otherAsset.localIdentifier)")
+                                    duplicates.append(otherAsset)
+                                }
                             }
                         }
-                        // Сохраняем группу только если найдены дубликаты
+
+                        // Если найдены дубликаты, создаем группу
                         if !duplicates.isEmpty {
                             let newGroup = [asset] + duplicates
                             groupedPhotos.append(newGroup)
@@ -115,15 +140,18 @@ final class AssetManagementService {
         }
     }
 
+    // MARK: - Image Loading
+
+    /// Асинхронная загрузка изображения для PHAsset
     private func loadImage(for asset: PHAsset, completion: @escaping (UIImage?) -> Void) {
         let options = PHImageRequestOptions()
         options.isNetworkAccessAllowed = true
         options.deliveryMode = .highQualityFormat
-        options.resizeMode = .none // Не уменьшать изображение
+        options.resizeMode = .none
 
         PHImageManager.default().requestImage(
             for: asset,
-            targetSize: PHImageManagerMaximumSize, // Максимальный размер
+            targetSize: PHImageManagerMaximumSize,
             contentMode: .aspectFit,
             options: options
         ) { image, _ in
@@ -131,24 +159,22 @@ final class AssetManagementService {
         }
     }
 
+    /// Синхронная загрузка изображения для PHAsset
     private func loadImageSync(for asset: PHAsset) -> UIImage? {
         let options = PHImageRequestOptions()
         options.isSynchronous = true
         options.deliveryMode = .highQualityFormat
-        options.resizeMode = .none // Не уменьшать изображение
+        options.resizeMode = .none
 
         var resultImage: UIImage?
-        let semaphore = DispatchSemaphore(value: 0)
         PHImageManager.default().requestImage(
             for: asset,
-            targetSize: PHImageManagerMaximumSize, // Максимальный размер
+            targetSize: PHImageManagerMaximumSize,
             contentMode: .aspectFit,
             options: options
         ) { image, _ in
             resultImage = image
-            semaphore.signal()
         }
-        semaphore.wait()
         return resultImage
     }
 

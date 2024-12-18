@@ -8,26 +8,11 @@
 import SwiftUI
 import Photos
 
-enum SimilarPhotosAssembly {
-    static func openSimilarPhotos() -> UIViewController {
-//        let router = HomeRouter()
-//        let service = HomeService()
-        let viewModel = SimilarPhotosViewModel()
-
-        let view = SimilarPhotosView(viewModel: viewModel)
-        let viewController = TAHostingController(rootView: view)
-
-//        router.parentController = viewController
-        return viewController
-    }
-}
-
 struct SimilarPhotosView: View {
     
     // MARK: - Private Properties
 
     @ObservedObject private var viewModel: SimilarPhotosViewModel
-    @State private var showingPhotoViewer: Bool = false
 
     // MARK: - Init
 
@@ -49,13 +34,9 @@ struct SimilarPhotosView: View {
             
             Spacer()
         }
-        .fullScreenCover(isPresented: $showingPhotoViewer) {
-            PhotoViewerView(
-                group: viewModel.groupedPhotos.first ?? [],
-                selectedPhotos: .constant(Set<String>())
-            )
-        }
     }
+    
+    // MARK: - Header View
     
     @ViewBuilder private func makeHeaderView() -> some View {
         HStack(spacing: .zero) {
@@ -71,44 +52,57 @@ struct SimilarPhotosView: View {
                     .font(.system(size: 17))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-//            .asButton(style: .opacity, action: viewModel.dismiss)
+            .asButton(style: .opacity, action: viewModel.dismiss)
             
-            Text("Setting")
+            Text("Similar Photos")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity, alignment: .center)
 
             Spacer()
                 .frame(maxWidth: .infinity, alignment: .trailing)
+            
+            // Добавить Seselect All
         }
-        .padding(.horizontal, 16)
-        .frame(height: 44)
+        .padding(vertical: 13, horizontal: 16)
+//        .frame(height: 44)
         .background(Color.white)
     }
     
+    // MARK: - Photos List
+    
     @ViewBuilder private func makePhotosListView() -> some View {
-        
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Similar Photos")
-                .font(.system(size: 32, weight: .semibold))
-            
-            Text("644 photos")
-                .textStyle(.price, textColor: .Typography.textGray)
-        }
-        
-        List {
-            ForEach(viewModel.groupedPhotos.indices, id: \.self) { index in
-                Section(header: Text("\(viewModel.groupedPhotos[index].count) similar")) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                // Заголовок
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Similar Photos")
+                        .font(.system(size: 32, weight: .semibold))
+                    
+                    Text("644 photos")
+                        .textStyle(.price, textColor: .Typography.textGray)
+                }
+                
+                // Список
+                ForEach(viewModel.groupedPhotos.indices, id: \.self) { index in
+                    Section(header: Text("\(viewModel.groupedPhotos[index].count) similar")) {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
                             ForEach(viewModel.groupedPhotos[index], id: \.localIdentifier) { asset in
                                 PhotoThumbnailView(asset: asset)
+                                    .frame(height: 178)
+                                    .cornerRadius(6)
+                                    .padding(vertical: 6, horizontal: 8)
                             }
                         }
+                        .padding(.vertical, 8)
                     }
                 }
+                .padding(top: 24)
             }
+            .padding(top: 24, horizontal: 16)
         }
+        .background(Color.hexToColor(hex: "#F4F7FA"))
+
         .onAppear {
             print("Grouped Photos: \(viewModel.groupedPhotos)")
         }
@@ -117,6 +111,7 @@ struct SimilarPhotosView: View {
 }
 
 struct PhotoThumbnailView: View {
+    
     let asset: PHAsset
 
     @State private var image: UIImage? = nil
@@ -144,12 +139,15 @@ struct PhotoThumbnailView: View {
         let options = PHImageRequestOptions()
         options.isNetworkAccessAllowed = true // Разрешить загрузку из iCloud
         options.deliveryMode = .highQualityFormat
-        options.resizeMode = .exact
+        options.resizeMode = .none // .exact
 
         PHImageManager.default().requestImage(
             for: asset,
-            targetSize: CGSize(width: 80, height: 80),
-            contentMode: .aspectFill,
+            targetSize: CGSize(
+                width: 176,
+                height: 178
+            ),
+            contentMode: .aspectFit,
             options: options
         ) { image, info in
             if let image = image {
@@ -236,6 +234,11 @@ struct CheckBoxView: View {
 
 struct PhotoView_Previews: PreviewProvider {
     static var previews: some View {
-        SimilarPhotosView(viewModel: SimilarPhotosViewModel())
+        SimilarPhotosView(
+            viewModel: SimilarPhotosViewModel(
+                service: SimilarPhotosService(),
+                router: SimilarPhotosRouter()
+            )
+        )
     }
 }

@@ -11,20 +11,40 @@ import Vision
 import Combine
 
 final class SimilarPhotosViewModel: ObservableObject {
-    // Dependencies
-    private let assetManagementService: AssetManagementService
 
-    // Published properties for UI updates
+    // MARK: - Published Properties
+
     @Published var groupedPhotos: [[PHAsset]] = []
     @Published var isAnalyzing: Bool = true
 
-    // Initialization
-    init(assetManagementService: AssetManagementService = AssetManagementService()) {
+    // MARK: - Private Properties
+
+    private let service: SimilarPhotosService
+    private let router: SimilarPhotosRouter
+    private let assetManagementService: AssetManagementService
+
+    // MARK: - Init
+
+    init(
+        service: SimilarPhotosService,
+        router: SimilarPhotosRouter,
+        assetManagementService: AssetManagementService = AssetManagementService()
+    ) {
+        self.service = service
+        self.router = router
         self.assetManagementService = assetManagementService
-        fetchAndAnalyzePhotos()
+        
+        self.fetchAndAnalyzePhotos()
     }
 
-    // Fetch and analyze photos
+    // MARK: - Public Methods
+
+    func dismiss() {
+        router.dismiss()
+    }
+    
+    // MARK: - Private Methods
+    
     private func fetchAndAnalyzePhotos() {
         isAnalyzing = true
 
@@ -42,4 +62,5 @@ final class SimilarPhotosViewModel: ObservableObject {
             }
         }
     }
+    
  }

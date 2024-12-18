@@ -46,8 +46,8 @@
             filePath = "Cleaner/Managers/AssetManagementService.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "187"
-            endingLineNumber = "187"
+            startingLineNumber = "213"
+            endingLineNumber = "213"
             landmarkName = "areImagesEqual(_:_:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -62,8 +62,8 @@
             filePath = "Cleaner/Managers/AssetManagementService.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "179"
-            endingLineNumber = "179"
+            startingLineNumber = "205"
+            endingLineNumber = "205"
             landmarkName = "areImagesVisuallySimilar(image1:image2:)"
             landmarkType = "7">
          </BreakpointContent>
