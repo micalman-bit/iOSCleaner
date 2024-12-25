@@ -16,7 +16,6 @@ struct OnboardingSlide: View {
         VStack(spacing: .zero) {
             
             ZStack {
-                // Лотти-анимация (или замена на Image)
                 LottieView(name: lottieFileForIndex(index), isActive: isActive)
                     .frame(width: .screenWidth, height: .screenHeight)
                 
@@ -32,7 +31,7 @@ struct OnboardingSlide: View {
                         .padding(bottom: 26)
                     
                     Text(index == 0 ? "GET STARTED" : "Next")
-                        .textStyle(.onboardingTitle, textColor: .Typography.textWhite)
+                        .textStyle(.textBig, textColor: .Typography.textWhite)
                         .frame(width: .screenWidth - 40, height: 80)
                         .background(Color.blue)
                         .cornerRadius(55)

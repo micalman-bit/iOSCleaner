@@ -45,10 +45,10 @@ struct PaywallView: View {
     
     @ViewBuilder private func makeHeaderView() -> some View {
         VStack(spacing: 6) {
-            Text("Free Trial Enabled")
+            Text("FREE UP YOUR")
                 .font(.system(size: 40, weight: .semibold))
 
-            Text("Storage")
+            Text("STORAGE")
                 .font(.system(size: 40, weight: .semibold))
                 .foregroundColor(.white)
                 .padding(vertical: 1, horizontal: 10)
@@ -221,7 +221,7 @@ struct PaywallView: View {
                 .frame(width: 16, height: 16)
                 .clipped()
 
-            Text("No Payment Now")
+            Text(viewModel.isPassTrail || !viewModel.isSelectWeekPlan ? "NO PAYMENT NOW" : "CANCEL ANYTIME")
                 .textStyle(.semibold)
         }.padding(bottom: 13)
         

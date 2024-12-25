@@ -34,33 +34,43 @@ final class SimilarPhotosViewModel: ObservableObject {
         self.router = router
         self.assetManagementService = assetManagementService
         
-        self.fetchAndAnalyzePhotos()
+        self.loadAndAnalyzePhotos()
     }
 
     // MARK: - Public Methods
 
+    func openSimilarPhotoPicker(
+        groupInex: Int,
+        selectedItemInex: Int
+    ) {
+        router.openSimilarPhotoPicker(
+            groupedPhotos[groupInex],
+            selectedImage: groupedPhotos[groupInex][selectedItemInex]
+        )
+    }
+    
     func dismiss() {
         router.dismiss()
     }
     
     // MARK: - Private Methods
     
-    private func fetchAndAnalyzePhotos() {
+    func loadAndAnalyzePhotos() {
         isAnalyzing = true
-
-        assetManagementService.fetchAndAnalyzePhotos { [weak self] groupedPhotos in
-            guard let self = self else { return }
-            DispatchQueue.main.async {
-                self.groupedPhotos = groupedPhotos
-                self.isAnalyzing = false
-
-                if groupedPhotos.isEmpty {
-                    print("No similar photos found.")
-                } else {
-                    print("Found \(groupedPhotos.count) groups of similar photos.")
+        groupedPhotos = []
+        
+        assetManagementService.fetchAndAnalyzePhotos(
+            onNewGroupFound: { [weak self] newGroup in
+                DispatchQueue.main.async {
+                    self?.groupedPhotos.append(newGroup)
+                }
+            },
+            completion: { [weak self] in
+                DispatchQueue.main.async {
+                    self?.isAnalyzing = false
                 }
             }
-        }
+        )
     }
-    
+
  }

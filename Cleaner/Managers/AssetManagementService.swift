@@ -11,7 +11,6 @@ import Vision
 import Combine
 import SwiftUI
 import CoreImage
-//import OpenCV
 
 final class AssetManagementService {
     // MARK: - Properties
@@ -26,11 +25,14 @@ final class AssetManagementService {
     // MARK: - Fetch and Analyze Photos
 
     /// Запрашивает доступ к фото, получает изображения и анализирует их на дубликаты
-    func fetchAndAnalyzePhotos(completion: @escaping ([[PHAsset]]) -> Void) {
+    func fetchAndAnalyzePhotos(
+        onNewGroupFound: @escaping ([PHAsset]) -> Void,
+        completion: @escaping () -> Void
+    ) {
         PHPhotoLibrary.requestAuthorization { status in
             guard status == .authorized else {
                 print("Access to Photo Library not authorized.")
-                completion([])
+                completion()
                 return
             }
 
@@ -41,17 +43,22 @@ final class AssetManagementService {
 
             if assets.isEmpty {
                 print("No photos found in the library.")
+                completion()
             } else {
                 print("Fetched \(assets.count) assets from the photo library.")
             }
 
             // Начинаем анализ изображений
-            self.analyzePhotos(assets: assets, completion: completion)
+            self.analyzePhotos(assets: assets, onNewGroupFound: onNewGroupFound, completion: completion)
         }
     }
 
     /// Анализирует изображения и группирует дубликаты
-    private func analyzePhotos(assets: [PHAsset], completion: @escaping ([[PHAsset]]) -> Void) {
+    private func analyzePhotos(
+        assets: [PHAsset],
+        onNewGroupFound: @escaping ([PHAsset]) -> Void,
+        completion: @escaping () -> Void
+    ) {
         // Сортировка изображений по дате создания
         let sortedAssets = assets.sorted { $0.creationDate ?? Date() < $1.creationDate ?? Date() }
         var groupedPhotos: [[PHAsset]] = []
@@ -77,15 +84,12 @@ final class AssetManagementService {
                         if let firstAsset = group.first {
                             if let groupImage = self.loadImageSync(for: firstAsset) {
                                 if self.areImagesVisuallySimilar(image1: image, image2: groupImage) {
-                                    print("[DEBUG] Visually similar: \(asset.localIdentifier) with \(firstAsset.localIdentifier)")
                                     currentGroup = group
                                     break
                                 } else if self.areImagesEqual(image, groupImage) {
-                                    print("[DEBUG] Exact equality match: \(asset.localIdentifier) with \(firstAsset.localIdentifier)")
                                     currentGroup = group
                                     break
                                 } else if self.compareUsingHash(image, groupImage) {
-                                    print("[DEBUG] Hash-based match: \(asset.localIdentifier) with \(firstAsset.localIdentifier)")
                                     currentGroup = group
                                     break
                                 }
@@ -98,7 +102,6 @@ final class AssetManagementService {
                         if !currentGroup.contains(asset) {
                             currentGroup.append(asset)
                             groupedPhotos[groupedPhotos.firstIndex(of: currentGroup)!] = currentGroup
-                            print("Duplicate found: Asset \(asset.localIdentifier) added to existing group.")
                         }
                     } else {
                         // Создаем новую группу и ищем дубликаты среди оставшихся изображений
@@ -107,16 +110,13 @@ final class AssetManagementService {
                             if otherAsset == asset { continue }
                             if let otherImage = self.loadImageSync(for: otherAsset) {
                                 if self.areImagesVisuallySimilar(image1: image, image2: otherImage) {
-                                    print("[DEBUG] New group - Visual similarity: \(asset.localIdentifier) with \(otherAsset.localIdentifier)")
                                     duplicates.append(otherAsset)
                                 } else if self.areImagesEqual(image, otherImage) {
-                                    print("[DEBUG] New group - Exact equality: \(asset.localIdentifier) with \(otherAsset.localIdentifier)")
                                     duplicates.append(otherAsset)
                                 } else if self.compareUsingHash(image, otherImage) {
-                                    print("[DEBUG] New group - Hash-based match: \(asset.localIdentifier) with \(otherAsset.localIdentifier)")
                                     duplicates.append(otherAsset)
-                                } else if let similarityScore = self.calculateImageSimilarity(image1: image, image2: otherImage), similarityScore < self.similarityThreshold {
-                                    print("[DEBUG] New group - FeaturePrint match with score \(similarityScore): \(asset.localIdentifier) and \(otherAsset.localIdentifier)")
+                                } else if let similarityScore = self.calculateImageSimilarity(image1: image, image2: otherImage),
+                                          similarityScore < self.similarityThreshold {
                                     duplicates.append(otherAsset)
                                 }
                             }
@@ -126,7 +126,11 @@ final class AssetManagementService {
                         if !duplicates.isEmpty {
                             let newGroup = [asset] + duplicates
                             groupedPhotos.append(newGroup)
-                            print("New group created with asset: \(asset.localIdentifier) and \(duplicates.count) duplicates.")
+
+                            // Отображаем новую группу сразу после нахождения
+                            DispatchQueue.main.async {
+                                onNewGroupFound(newGroup)
+                            }
                         }
                     }
                 }
@@ -136,13 +140,12 @@ final class AssetManagementService {
 
         dispatchGroup.notify(queue: .main) {
             print("Analysis completed. Total groups: \(groupedPhotos.count)")
-            completion(groupedPhotos)
+            completion()
         }
     }
 
     // MARK: - Image Loading
 
-    /// Асинхронная загрузка изображения для PHAsset
     private func loadImage(for asset: PHAsset, completion: @escaping (UIImage?) -> Void) {
         let options = PHImageRequestOptions()
         options.isNetworkAccessAllowed = true
@@ -159,7 +162,6 @@ final class AssetManagementService {
         }
     }
 
-    /// Синхронная загрузка изображения для PHAsset
     private func loadImageSync(for asset: PHAsset) -> UIImage? {
         let options = PHImageRequestOptions()
         options.isSynchronous = true
@@ -178,6 +180,7 @@ final class AssetManagementService {
         return resultImage
     }
 
+    // Методы сравнения изображений (без изменений)
     private func areImagesVisuallySimilar(image1: UIImage, image2: UIImage) -> Bool {
         guard let ciImage1 = CIImage(image: image1),
               let ciImage2 = CIImage(image: image2) else {
@@ -204,7 +207,7 @@ final class AssetManagementService {
         let avgBrightness = Float(bitmap[0]) / 255.0
         return avgBrightness < 0.1 // The lower the threshold, the stricter the similarity check
     }
-
+    
     private func areImagesEqual(_ image1: UIImage, _ image2: UIImage) -> Bool {
         guard let data1 = image1.cgImage?.dataProvider?.data,
               let data2 = image2.cgImage?.dataProvider?.data else {

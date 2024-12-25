@@ -172,8 +172,6 @@ final class HomeViewModel: ObservableObject {
                 self?.isPhonoAndVideoAvailable = true
                 self?.isPhonoAndVideoLoaderActive = false
                 print("Photos: \(photoGB) GB, Videos: \(videoGB) GB")
-                
-                self?.requestContactsAccess()
             }
         }
     }
