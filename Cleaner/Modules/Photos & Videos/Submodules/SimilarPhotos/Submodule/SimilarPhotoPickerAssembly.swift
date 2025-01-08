@@ -10,8 +10,9 @@ import Photos
 
 enum SimilarPhotoPickerAssembly {
     static func openSimilarPhotoPicker(
-        _ assets: [PHAsset],
-        selectedImage: PHAsset
+        _ assets: [PhotoAsset],
+        selectedImage: PhotoAsset,
+        sucessAction: @escaping ([PhotoAsset]) -> Void
     ) -> UIViewController {
         
         let router = SimilarPhotoPickerRouter()
@@ -19,7 +20,8 @@ enum SimilarPhotoPickerAssembly {
         let viewModel = SimilarPhotoPickerViewModel(
             router: router,
             assets: assets,
-            selectedImage: selectedImage
+            selectedImage: selectedImage,
+            sucessAction: sucessAction
         )
         
         let view = SimilarPhotoPickerView(viewModel: viewModel)

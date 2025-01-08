@@ -12,32 +12,36 @@ final class SimilarPhotoPickerViewModel: ObservableObject {
 
     // MARK: - Published Properties
 
-    @Published var selectedImage: PHAsset
+    @Published var selectedImage: PhotoAsset
 
     // MARK: - Private Properties
 
     private let router: SimilarPhotoPickerRouter
     
+    private let sucessAction: ([PhotoAsset]) -> Void
     
     // MARK: - Public Properties
 
-    var assets: [PHAsset]
+    var assets: [PhotoAsset]
     
     // MARK: - Init
 
     init(
         router: SimilarPhotoPickerRouter,
-        assets: [PHAsset],
-        selectedImage: PHAsset
+        assets: [PhotoAsset],
+        selectedImage: PhotoAsset,
+        sucessAction: @escaping ([PhotoAsset]) -> Void
     ) {
         self.router = router
         self.assets = assets
         self.selectedImage = selectedImage
+        self.sucessAction = sucessAction
     }
  
     // MARK: - Public Func
     
     func dismiss() {
+        sucessAction(assets)
         router.dismiss()
     }
 

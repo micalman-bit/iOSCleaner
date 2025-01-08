@@ -14,7 +14,9 @@ final class HomeRouter: DefaultRouter {
 
     func openSimilarPhotos() {
         guard let parentController else { return }
-        let viewConreoller = SimilarPhotosAssembly.openSimilarPhotos()
+        let viewConreoller = PhotosAndVideosAssembly.openPhotosAndVideos()
+//        let viewConreoller = SimilarPhotosAssembly.openSimilarPhotos()
+
         push(viewConreoller, on: parentController)
     }
     

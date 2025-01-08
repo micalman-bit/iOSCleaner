@@ -14,13 +14,15 @@ final class SimilarPhotosRouter: DefaultRouter {
     weak var parentController: UIViewController?
     
     func openSimilarPhotoPicker(
-        _ assets: [PHAsset],
-        selectedImage: PHAsset
+        _ assets: [PhotoAsset],
+        selectedImage: PhotoAsset,
+        sucessAction: @escaping ([PhotoAsset]) -> Void
     ) {
         guard let parentController else { return }
         let viewConreoller = SimilarPhotoPickerAssembly.openSimilarPhotoPicker(
             assets,
-            selectedImage: selectedImage
+            selectedImage: selectedImage,
+            sucessAction: sucessAction
         )
         push(viewConreoller, on: parentController)
     }

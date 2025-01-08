@@ -52,7 +52,20 @@ struct SimilarPhotoPickerView: View {
             Spacer()
                 .frame(maxWidth: .infinity, alignment: .trailing)
             
-            // Добавить Seselect All
+            
+            Image(viewModel.selectedImage.isSelected ? "circleCheck" : "circleGray")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 24, height: 24)
+                .clipped()
+                .padding(vertical: 13, trailing: 14)//14
+                .onTapGesture {
+                    if let index = viewModel.assets.firstIndex(where: { $0.id == viewModel.selectedImage.id }) {
+                        viewModel.assets[index].isSelected.toggle()
+                        viewModel.selectedImage.isSelected = viewModel.assets[index].isSelected
+                    }
+                }
+
         }
         .padding(vertical: 13, horizontal: 16)
 //        .frame(height: 44)
@@ -64,41 +77,31 @@ struct SimilarPhotoPickerView: View {
     @ViewBuilder private func makeContentView() -> some View {
         Spacer(minLength: .zero)
 
-        // Верхнее изображение
-//        if let selectedAsset = viewModel.selectedImage {
-            AssetImageView(asset: viewModel.selectedImage)
+        AssetImageView(asset: viewModel.selectedImage.asset)
                 .frame(maxWidth: .screenWidth, maxHeight: .screenWidth * 1.3)
                 .aspectRatio(contentMode: .fit)
-//        } else {
-//            Text("Выберите изображение")
-//                .frame(maxWidth: .screenWidth, maxHeight: 540)
-//                .background(Color.gray.opacity(0.2))
-//        }
 
         Spacer(minLength: .zero)
         
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(viewModel.assets, id: \.self) { asset in
+                ForEach(viewModel.assets, id: \.id) { asset in
                     Button(action: {
                         viewModel.selectedImage = asset
                     }) {
-                        AssetImageView(asset: asset)
+                        AssetImageView(asset: asset.asset)
                             .frame(width: 100, height: 100)
                             .aspectRatio(contentMode: .fill)
                             .clipped()
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(viewModel.selectedImage == asset ? Color.blue : Color.clear, lineWidth: 3)
+                                    .stroke(viewModel.selectedImage.id == asset.id ? Color.blue : Color.clear, lineWidth: 3)
                             )
                     }
                 }
             }.padding(vertical: 5)
         }
-        .padding(bottom: 62)
-//        .background(Color.red)
-        .padding(horizontal: 5)
-    
+        .padding(bottom: 62, horizontal: 5)
     }
 }
 
@@ -128,10 +131,13 @@ struct AssetImageView: View {
         let options = PHImageRequestOptions()
         options.isSynchronous = false
         options.deliveryMode = .highQualityFormat
+//        options.resizeMode = .exact // Устанавливаем точное изменение размера
+
+        let targetSize = CGSize(width: .screenWidth, height: .screenWidth * 1.3)
 
         manager.requestImage(for: asset,
-                             targetSize: CGSize(width: 300, height: 300),
-                             contentMode: .aspectFit,//.aspectFill,
+                             targetSize: targetSize,
+                             contentMode: .aspectFit,
                              options: options) { result, _ in
             if let result = result {
                 DispatchQueue.main.async {
@@ -142,14 +148,14 @@ struct AssetImageView: View {
     }
 }
 
-struct PhotoPickerView_Previews: PreviewProvider {
-    static var previews: some View {
-        SimilarPhotoPickerView(
-            viewModel: SimilarPhotoPickerViewModel(
-                router: SimilarPhotoPickerRouter(),
-                assets: [],
-                selectedImage: PHAsset()
-            )
-        )
-    }
-}
+//struct PhotoPickerView_Previews: PreviewProvider {
+//    static var previews: some View {
+//        SimilarPhotoPickerView(
+//            viewModel: SimilarPhotoPickerViewModel(
+//                router: SimilarPhotoPickerRouter(),
+//                assets: [],
+//                selectedImage: PHAsset()
+//            )
+//        )
+//    }
+//}

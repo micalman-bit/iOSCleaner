@@ -34,15 +34,16 @@ struct SimilarPhotosView: View {
                 VStack {
                     
                     HStack(spacing: 8) {
-                        Text("delete 145 photos")
-                            .foregroundColor(.blue)
-                            .font(.system(size: 17))
+                        Text("DELETE \(viewModel.selectedPhotos) PHOTOS")
+                            .foregroundColor(.white)
+                            .font(.system(size: 17, weight: .semibold))
 
-                        Text("3.2 GB")
+                        Text("\(viewModel.selectedSizeInGB) GB")
                     }
                     .padding(vertical: 20, horizontal: 52)
                     .background(Color.blue)
                     .cornerRadius(55)
+                    .asButton(style: .opacity, action: viewModel.deletePhoto)
                     
                 }
                 .background(Color.white)
@@ -150,7 +151,7 @@ struct SimilarPhotosView: View {
             Text("Similar Photos")
                 .font(.system(size: 32, weight: .semibold))
             
-            Text("644 photos")
+            Text("\(viewModel.totalPhotos) photos")
                 .textStyle(.price, textColor: .Typography.textGray)
         }
     }
@@ -174,22 +175,36 @@ struct SimilarPhotosView: View {
             columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2),
             spacing: 8
         ) {
-            ForEach(viewModel.groupedPhotos[index], id: \.localIdentifier) { asset in
-                PhotoThumbnailView(asset: asset)
-                    .frame(height: 178)
-                    .cornerRadius(6)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 8)
-                    .onTapGesture {
-                        handlePhotoTap(groupIndex: index, asset: asset)
-                    }
+            ForEach(viewModel.groupedPhotos[index], id: \.id) { asset in
+                ZStack(alignment: .bottomTrailing) {
+                    PhotoThumbnailView(asset: asset.asset)
+                        .frame(height: 178)
+                        .cornerRadius(6)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .onTapGesture {
+                            handlePhotoTap(groupIndex: index, asset: asset)
+                        }
+                    
+                    Image(asset.isSelected ? "circleCheck" : "circleWhite")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .clipped()
+                        .padding(bottom: 14, trailing: 14)
+                        .onTapGesture {
+                            if let groupIndex = viewModel.groupedPhotos[index].firstIndex(where: { $0.id == asset.id }) {
+                                viewModel.groupedPhotos[index][groupIndex].isSelected.toggle()
+                            }
+                        }
+                }
             }
         }
         .padding(.vertical, 8)
     }
     
-    private func handlePhotoTap(groupIndex: Int, asset: PHAsset) {
-        if let selectedIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) {
+    private func handlePhotoTap(groupIndex: Int, asset: PhotoAsset) {
+        if let selectedIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.asset.localIdentifier == asset.asset.localIdentifier }) {
             viewModel.openSimilarPhotoPicker(
                 groupInex: groupIndex,
                 selectedItemInex: selectedIndex
