@@ -6,22 +6,15 @@
 //
 
 import Foundation
-
-// MARK: - SettingItemModel
+import Photos
 
 struct PhotosAndVideosItemModel: Identifiable {
     let id: UUID = UUID()
     let leftTitle: String
-    let leftSubtitle: String
+    var leftSubtitle: String
     let rightTitle: String
     let action: () -> Void
 }
-
-import Foundation
-import Photos
-
-import Foundation
-import Photos
 
 final class PhotosAndVideosViewModel: ObservableObject {
     
@@ -30,13 +23,15 @@ final class PhotosAndVideosViewModel: ObservableObject {
     @Published var listOfItems: [PhotosAndVideosItemModel]
     @Published var isAnalyzing: Bool = true
 
-    @Published var groupedPhotos: [[PhotoAsset]] = []
-
     // MARK: - Private Properties
 
     private let service: PhotosAndVideosService
     private let router: PhotosAndVideosRouter
     private let assetManagementService: AssetManagementService
+
+    private var groupedPhotos: [[PhotoAsset]] = []
+    private var groupedOnlyPhotos: [[PhotoAsset]] = []
+    private var groupedOnlyScreenshots: [ScreenshotsAsset] = []
 
     // MARK: - Init
 
@@ -48,12 +43,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
         self.service = service
         self.router = router
         self.assetManagementService = assetManagementService
-        self.listOfItems = [
-//            PhotosAndVideosItemModel(leftTitle: "Screenshots", leftSubtitle: "0", rightTitle: "0 MB", action: {}),
-//            PhotosAndVideosItemModel(leftTitle: "Screen recordings", leftSubtitle: "0", rightTitle: "0 MB", action: {}),
-//            PhotosAndVideosItemModel(leftTitle: "Similar Photos", leftSubtitle: "0", rightTitle: "0 MB", action: {}),
-//            PhotosAndVideosItemModel(leftTitle: "Video Duplicates", leftSubtitle: "0", rightTitle: "0 MB", action: {})
-        ]
+        self.listOfItems = []
         
         loadAndAnalyzePhotos()
     }
@@ -66,6 +56,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
 
     // MARK: - Private Methods
 
+    // Search photo duplicates
     private func loadAndAnalyzePhotos() {
         isAnalyzing = true
         groupedPhotos = []
@@ -77,31 +68,87 @@ final class PhotosAndVideosViewModel: ObservableObject {
                         let photoAssets: [PhotoAsset] = newGroup.enumerated().map { index, asset in
                             PhotoAsset(isSelected: index != 0, asset: asset)
                         }
-                        newGroup.first?.mediaType
                         self?.groupedPhotos.append(photoAssets)
                     }
                 },
                 completion: { [weak self] in
                     DispatchQueue.main.async {
                         guard let self else { return }
-                        self.listOfItems.append(
-                            PhotosAndVideosItemModel(
-                                leftTitle: "Similar Photos",
-                                leftSubtitle: "\(self.groupedPhotos.count)",
-                                rightTitle: "0 MB",
-                                action: self.openSimilarPhoto
-                            )
-                        )
-
-                        self.isAnalyzing = false
                         
+                        let photoAssets = self.groupedPhotos.flatMap { $0 }
+                        PhotoVideoManager.shared.calculateStorageUsageForAssets(photoAssets) { photoSize in
+                            self.listOfItems.append(
+                                PhotosAndVideosItemModel(
+                                    leftTitle: "Photos",
+                                    leftSubtitle: "\(photoAssets.count)",
+                                    rightTitle: String(format: "%.2f GB", photoSize),
+                                    action: self.openPhotos
+                                )
+                            )
+
+                            self.analyzeScreenshots()
+                        }
                     }
                 }
             )
         }
     }
+    
+    // Search screenshots
+    private func analyzeScreenshots() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.assetManagementService.fetchScreenshotsGroupedByMonth { [weak self] groupedScreenshots in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.groupedOnlyScreenshots = groupedScreenshots
+                    
+                    let screenshotAssets = self.groupedOnlyScreenshots.flatMap { $0.groupAsset }
+                    
+                    PhotoVideoManager.shared.calculateStorageUsageForAssets(screenshotAssets) { screenshotSize in
+                        self.listOfItems.append(
+                            PhotosAndVideosItemModel(
+                                leftTitle: "Screenshots",
+                                leftSubtitle: "\(screenshotAssets.count)",
+                                rightTitle: String(format: "%.2f GB", screenshotSize),
+                                action: self.openScreenshots
+                            )
+                        )
+                        
+                        self.isAnalyzing = false
+                    }
+                }
+            }
+        }
+    }
 
-    private func openSimilarPhoto() {
-        router.openSimilarPhotos()
+    func calculateStorageUsageForAssets(_ assets: [PHAsset], completion: @escaping (Double) -> Void) {
+        var totalSize: Double = 0.0
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            assets.forEach { asset in
+                if let resource = PHAssetResource.assetResources(for: asset).first,
+                   let fileSize = resource.value(forKey: "fileSize") as? Int64 {
+                    totalSize += Double(fileSize)
+                }
+            }
+            
+            DispatchQueue.main.async {
+                completion(totalSize / 1_073_741_824) // Конвертируем в GB
+            }
+        }
+    }
+
+    private func openScreenshots() {
+        router.openSimilarPhotos(
+            screenshots: groupedOnlyScreenshots,
+            type: .screenshots
+        )
+    }
+
+    private func openPhotos() {
+        router.openSimilarPhotos(
+            groupedPhotos: groupedPhotos,
+            type: .photos
+        )
     }
 }

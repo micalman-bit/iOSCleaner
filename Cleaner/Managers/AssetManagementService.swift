@@ -13,12 +13,13 @@ import SwiftUI
 import CoreImage
 
 final class AssetManagementService {
+
     // MARK: - Properties
 
     private let similarityThreshold: Float = 0.9
     private let maxConcurrentTasks = 2
-    private let memoryLimit: Int64 = 1_500 * 1_024 * 1_024 // Лимит памяти в 1.5 ГБ
-    private let batchSize = 100 // Размер батча для обработки
+    private let memoryLimit: Int64 = 1_500 * 1_024 * 1_024
+    private let batchSize = 100
 
     // Используем множество для проверки уникальности групп
     private var groupedPhotoIdentifiers: [Set<String>] = []
@@ -300,5 +301,72 @@ final class AssetManagementService {
             }
         }
         return nil
+    }
+}
+
+
+// MARK: - Screenshots
+
+extension AssetManagementService {
+    func fetchScreenshotsGroupedByMonth(
+        completion: @escaping ([ScreenshotsAsset]) -> Void
+    ) {
+        PHPhotoLibrary.requestAuthorization { [self] status in
+            guard status == .authorized else {
+                print("Access to Photo Library not authorized.")
+                completion([])
+                return
+            }
+
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+            let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            var screenshotGroups: [String: [PHAsset]] = [:]
+
+            fetchResult.enumerateObjects { asset, _, _ in
+                if asset.mediaSubtypes.contains(.photoScreenshot),
+                   let creationDate = asset.creationDate {
+                    let monthYearKey = self.formatDateToMonthYear(creationDate)
+
+                    if screenshotGroups[monthYearKey] != nil {
+                        screenshotGroups[monthYearKey]?.append(asset)
+                    } else {
+                        screenshotGroups[monthYearKey] = [asset]
+                    }
+                }
+            }
+
+            // Сортировка групп по убыванию (последние месяцы первыми)
+            let sortedGroups = screenshotGroups.sorted { lhs, rhs in
+                guard let lhsDate = parseMonthYear(lhs.key),
+                      let rhsDate = parseMonthYear(rhs.key) else {
+                    return false
+                }
+                return lhsDate > rhsDate
+            }
+
+            // Преобразование в массив ScreenshotsAsset
+            let screenshotsAssets = sortedGroups.map { key, assets in
+                ScreenshotsAsset(
+                    description: key,
+                    groupAsset: assets.map { PhotoAsset(isSelected: false, asset: $0) }
+                )
+            }
+
+            completion(screenshotsAssets)
+        }
+    }
+
+    private func formatDateToMonthYear(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy" // Например: "January 2025"
+        return formatter.string(from: date)
+    }
+
+    private func parseMonthYear(_ string: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.date(from: string)
     }
 }

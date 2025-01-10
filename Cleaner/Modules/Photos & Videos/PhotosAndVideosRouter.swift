@@ -12,9 +12,17 @@ final class PhotosAndVideosRouter: DefaultRouter {
 
     weak var parentController: UIViewController?
 
-    func openSimilarPhotos() {
+    func openSimilarPhotos(
+        groupedPhotos: [[PhotoAsset]]? = nil,
+        screenshots: [ScreenshotsAsset]? = nil,
+        type: SimilarPhotosType
+    ) {
         guard let parentController else { return }
-        let viewConreoller = SimilarPhotosAssembly.openSimilarPhotos()
+        let viewConreoller = SimilarPhotosAssembly.openSimilarPhotos(
+            groupedPhotos: groupedPhotos,
+            screenshots: screenshots,
+            type: type
+        )
         push(viewConreoller, on: parentController)
     }
 

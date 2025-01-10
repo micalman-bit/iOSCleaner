@@ -158,24 +158,48 @@ struct SimilarPhotosView: View {
     
     @ViewBuilder
     private func makePhotosSections() -> some View {
-        ForEach(viewModel.groupedPhotos.indices, id: \.self) { index in
-            VStack(alignment: .leading, spacing: 12) {
-                Text("\(viewModel.groupedPhotos[index].count) similar")
-                    .textStyle(.h2)
-                
-                makeLazyVGrid(for: index)
+        switch viewModel.type {
+        case .photos:
+            ForEach(Array(viewModel.groupedPhotos.enumerated()), id: \.offset) { index, group in
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("\(group.count) similar")
+                        .textStyle(.h2)
+                    
+                    makeLazyVGrid(for: group)
+                }
+                .padding(.top, 24)
             }
-            .padding(.top, 24)
+
+//            ForEach(viewModel.groupedPhotos.indices, id: \.self) { index in
+//                VStack(alignment: .leading, spacing: 12) {
+//                    Text("\(viewModel.groupedPhotos[index].count) similar")
+//                        .textStyle(.h2)
+//                    
+//                    makeLazyVGrid(for: viewModel.groupedPhotos[index])
+//                }
+//                .padding(.top, 24)
+//            }
+        case .screenshots:
+            ForEach(viewModel.screenshots.indices, id: \.self) { index in
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(viewModel.screenshots[index].description)
+                        .textStyle(.h2)
+                    
+                    makeLazyVGrid(for: viewModel.screenshots[index].groupAsset)
+                }
+                .padding(.top, 24)
+            }
         }
     }
-    
+
     @ViewBuilder
-    private func makeLazyVGrid(for index: Int) -> some View {
+    private func makeLazyVGrid(for assets: [PhotoAsset]) -> some View {
         LazyVGrid(
             columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2),
             spacing: 8
         ) {
-            ForEach(viewModel.groupedPhotos[index], id: \.id) { asset in
+            ForEach(assets.indices, id: \.self) { index in
+                let asset = assets[index]
                 ZStack(alignment: .bottomTrailing) {
                     PhotoThumbnailView(asset: asset.asset)
                         .frame(height: 178)
@@ -183,7 +207,7 @@ struct SimilarPhotosView: View {
                         .padding(.vertical, 6)
                         .padding(.horizontal, 8)
                         .onTapGesture {
-                            handlePhotoTap(groupIndex: index, asset: asset)
+                            handlePhotoTap(asset: asset, assets: assets)
                         }
                     
                     Image(asset.isSelected ? "circleCheck" : "circleWhite")
@@ -191,26 +215,40 @@ struct SimilarPhotosView: View {
                         .scaledToFit()
                         .frame(width: 24, height: 24)
                         .clipped()
-                        .padding(bottom: 14, trailing: 14)
+                        .padding(.bottom, 14)
+                        .padding(.trailing, 14)
                         .onTapGesture {
-                            if let groupIndex = viewModel.groupedPhotos[index].firstIndex(where: { $0.id == asset.id }) {
-                                viewModel.groupedPhotos[index][groupIndex].isSelected.toggle()
-                            }
+                            toggleSelection(for: asset, in: assets)
                         }
                 }
             }
         }
-        .padding(.vertical, 8)
     }
-    
-    private func handlePhotoTap(groupIndex: Int, asset: PhotoAsset) {
-        if let selectedIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.asset.localIdentifier == asset.asset.localIdentifier }) {
-            viewModel.openSimilarPhotoPicker(
-                groupInex: groupIndex,
-                selectedItemInex: selectedIndex
-            )
+
+    private func toggleSelection(for asset: PhotoAsset, in assets: [PhotoAsset]) {
+        if let groupIndex = viewModel.groupedPhotos.firstIndex(where: { $0.contains(where: { $0.id == asset.id }) }),
+           let assetIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.id == asset.id }) {
+            viewModel.groupedPhotos[groupIndex][assetIndex].isSelected.toggle()
+            viewModel.recalculateSelectedSize()
         }
     }
+    
+
+    private func handlePhotoTap(asset: PhotoAsset, assets: [PhotoAsset]) {
+        if let groupIndex = viewModel.groupedPhotos.firstIndex(where: { $0.contains(where: { $0.id == asset.id }) }),
+           let assetIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.id == asset.id }) {
+            viewModel.openSimilarPhotoPicker(groupInex: groupIndex, selectedItemInex: assetIndex)
+        }
+    }
+
+//    private func handlePhotoTap(groupIndex: Int, asset: PhotoAsset) {
+//        if let selectedIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.asset.localIdentifier == asset.asset.localIdentifier }) {
+//            viewModel.openSimilarPhotoPicker(
+//                groupInex: groupIndex,
+//                selectedItemInex: selectedIndex
+//            )
+//        }
+//    }
 }
 
 struct PhotoThumbnailView: View {
@@ -283,7 +321,8 @@ struct PhotoView_Previews: PreviewProvider {
         SimilarPhotosView(
             viewModel: SimilarPhotosViewModel(
                 service: SimilarPhotosService(),
-                router: SimilarPhotosRouter()
+                router: SimilarPhotosRouter(),
+                type: .screenshots
             )
         )
     }

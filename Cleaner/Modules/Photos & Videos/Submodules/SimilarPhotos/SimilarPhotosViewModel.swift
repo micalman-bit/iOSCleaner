@@ -16,6 +16,16 @@ struct PhotoAsset: Identifiable {
     let asset: PHAsset
 }
 
+struct ScreenshotsAsset {
+    let description: String
+    let groupAsset: [PhotoAsset]
+}
+
+enum SimilarPhotosType {
+    case photos
+    case screenshots
+}
+
 final class SimilarPhotosViewModel: ObservableObject {
 
     // MARK: - Published Properties
@@ -35,8 +45,7 @@ final class SimilarPhotosViewModel: ObservableObject {
                 .filter { $0.isSelected }
 
             print("Selected photo count: \(selectedPhotoAssets.count)")
-
-
+            
             calculateSelectedSize(for: selectedPhotoAssets)
 
             print("Selected size: \(selectedSizeInGB) GB")
@@ -45,8 +54,14 @@ final class SimilarPhotosViewModel: ObservableObject {
         }
     }
     
-    @Published var isAnalyzing: Bool = true
+    @Published var screenshots: [ScreenshotsAsset] = []
+    
+    @Published var isAnalyzing: Bool
 
+    // MARK: - Public Properties
+
+    var type: SimilarPhotosType
+    
     // MARK: - Private Properties
 
     private let service: SimilarPhotosService
@@ -58,13 +73,43 @@ final class SimilarPhotosViewModel: ObservableObject {
     init(
         service: SimilarPhotosService,
         router: SimilarPhotosRouter,
+        groupedPhotos: [[PhotoAsset]]? = nil,
+        screenshots: [ScreenshotsAsset]? = nil,
+        type: SimilarPhotosType,
         assetManagementService: AssetManagementService = AssetManagementService()
     ) {
         self.service = service
         self.router = router
+        self.type = type
         self.assetManagementService = assetManagementService
         
-        self.loadAndAnalyzePhotos()
+        switch type {
+        case .photos:
+            if let groupedPhotos {
+                self.groupedPhotos = groupedPhotos
+                
+                totalPhotos = "\(groupedPhotos.flatMap { $0 }.count)"
+                
+                selectedPhotos = "\(groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
+
+                self.isAnalyzing = false
+            } else {
+                self.isAnalyzing = true
+                self.loadAndAnalyzePhotos()
+            }
+        case .screenshots:
+            if let screenshots {
+                self.isAnalyzing = false
+                self.screenshots = screenshots
+                self.groupedPhotos = screenshots.map { $0.groupAsset }
+                
+                totalPhotos = "\(self.groupedPhotos.flatMap { $0 }.count)"
+                selectedPhotos = "\(self.groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
+                
+            } else {
+                self.isAnalyzing = true
+            }
+        }
     }
 
     // MARK: - Public Methods
@@ -112,11 +157,12 @@ final class SimilarPhotosViewModel: ObservableObject {
     
     // MARK: - Private Methods
     
-    // Метод для удаления удалённых активов из groupedPhotos
-    private func removeDeletedAssets(from deletedAssets: [PHAsset]) {
-        for groupIndex in groupedPhotos.indices {
-            groupedPhotos[groupIndex].removeAll { photoAsset in
-                deletedAssets.contains(where: { $0.localIdentifier == photoAsset.asset.localIdentifier })
+    private func recalculateSelectedSize() {
+        let selectedAssets = groupedPhotos.flatMap { $0 }.filter { $0.isSelected }
+        
+        PhotoVideoManager.shared.calculateStorageUsageForAssets(selectedAssets) { [weak self] totalSize in
+            DispatchQueue.main.async {
+                self?.selectedSizeInGB = String(format: "%.2f", totalSize)
             }
         }
     }
@@ -138,11 +184,18 @@ final class SimilarPhotosViewModel: ObservableObject {
         dispatchGroup.notify(queue: .main) {
             let selectedSizeGB = Double(totalSize) / (1024 * 1024 * 1024)
             self.selectedSizeInGB = "\(String(format: "%.2f", selectedSizeGB))"
-            
-            print("Selected size: \(self.selectedSizeInGB) GB")
         }
     }
-    
+
+    // Метод для удаления удалённых активов из groupedPhotos
+    private func removeDeletedAssets(from deletedAssets: [PHAsset]) {
+        for groupIndex in groupedPhotos.indices {
+            groupedPhotos[groupIndex].removeAll { photoAsset in
+                deletedAssets.contains(where: { $0.localIdentifier == photoAsset.asset.localIdentifier })
+            }
+        }
+    }
+
     private func loadAndAnalyzePhotos() {
         isAnalyzing = true
         groupedPhotos = []

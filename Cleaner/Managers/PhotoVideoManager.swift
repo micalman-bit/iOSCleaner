@@ -63,4 +63,24 @@ final class PhotoVideoManager {
             completion(photoStorage / 1_073_741_824, videoStorage / 1_073_741_824) // Конвертируем в GB
         }
     }
+    
+    func calculateStorageUsageForAssets(_ photoAssets: [PhotoAsset], completion: @escaping (Double) -> Void) {
+        var totalSize: Int64 = 0
+        let dispatchGroup = DispatchGroup()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            for photoAsset in photoAssets {
+                dispatchGroup.enter()
+                if let resource = PHAssetResource.assetResources(for: photoAsset.asset).first,
+                   let fileSize = resource.value(forKey: "fileSize") as? Int64 {
+                    totalSize += fileSize
+                }
+                dispatchGroup.leave()
+            }
+
+            dispatchGroup.notify(queue: .main) {
+                completion(Double(totalSize) / 1_073_741_824) // Конвертируем в GB
+            }
+        }
+    }
 }
