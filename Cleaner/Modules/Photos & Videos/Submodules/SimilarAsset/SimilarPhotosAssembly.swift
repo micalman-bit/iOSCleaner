@@ -7,10 +7,10 @@
 
 import UIKit
 
-enum SimilarPhotosAssembly {
-    static func openSimilarPhotos(
-        groupedPhotos: [[PhotoAsset]]? = nil,
-        screenshots: [ScreenshotsAsset]? = nil,
+enum SimilarAssetAssembly {
+    static func openSimilarAsset(
+        photoOrVideo: [[PhotoAsset]]? = nil,
+        screenshotsOrRecording: [ScreenshotsAsset]? = nil,
         type: SimilarPhotosType
     ) -> UIViewController {
         let router = SimilarPhotosRouter()
@@ -19,8 +19,8 @@ enum SimilarPhotosAssembly {
         let viewModel = SimilarPhotosViewModel(
             service: service,
             router: router,
-            groupedPhotos: groupedPhotos,
-            screenshots: screenshots,
+            photoOrVideo: photoOrVideo,
+            screenshotsOrRecording: screenshotsOrRecording,
             type: type
         )
 

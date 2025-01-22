@@ -27,11 +27,15 @@ final class PhotosAndVideosViewModel: ObservableObject {
 
     private let service: PhotosAndVideosService
     private let router: PhotosAndVideosRouter
+    
     private let assetManagementService: AssetManagementService
-
+    private let videoManagementService: VideoManagementService
+    
     private var groupedPhotos: [[PhotoAsset]] = []
-    private var groupedOnlyPhotos: [[PhotoAsset]] = []
-    private var groupedOnlyScreenshots: [ScreenshotsAsset] = []
+    private var groupedScreenshots: [ScreenshotsAsset] = []
+    
+    private var groupedVideo: [[PhotoAsset]] = []
+    private var groupedScreenRecords: [ScreenshotsAsset] = []
 
     // MARK: - Init
 
@@ -42,7 +46,9 @@ final class PhotosAndVideosViewModel: ObservableObject {
     ) {
         self.service = service
         self.router = router
+        
         self.assetManagementService = assetManagementService
+        self.videoManagementService = VideoManagementService()
         self.listOfItems = []
         
         loadAndAnalyzePhotos()
@@ -82,7 +88,13 @@ final class PhotosAndVideosViewModel: ObservableObject {
                                     leftTitle: "Photos",
                                     leftSubtitle: "\(photoAssets.count)",
                                     rightTitle: String(format: "%.2f GB", photoSize),
-                                    action: self.openPhotos
+                                    action: { [weak self] in
+                                        guard let self else { return }
+                                        self.openSimilarAsset(
+                                            photoOrVideo: groupedPhotos,
+                                            type: .photos
+                                        )
+                                    }
                                 )
                             )
 
@@ -100,9 +112,9 @@ final class PhotosAndVideosViewModel: ObservableObject {
             self?.assetManagementService.fetchScreenshotsGroupedByMonth { [weak self] groupedScreenshots in
                 DispatchQueue.main.async {
                     guard let self else { return }
-                    self.groupedOnlyScreenshots = groupedScreenshots
+                    self.groupedScreenshots = groupedScreenshots
                     
-                    let screenshotAssets = self.groupedOnlyScreenshots.flatMap { $0.groupAsset }
+                    let screenshotAssets = self.groupedScreenshots.flatMap { $0.groupAsset }
                     
                     PhotoVideoManager.shared.calculateStorageUsageForAssets(screenshotAssets) { screenshotSize in
                         self.listOfItems.append(
@@ -110,17 +122,98 @@ final class PhotosAndVideosViewModel: ObservableObject {
                                 leftTitle: "Screenshots",
                                 leftSubtitle: "\(screenshotAssets.count)",
                                 rightTitle: String(format: "%.2f GB", screenshotSize),
-                                action: self.openScreenshots
+                                action: { [weak self] in
+                                    guard let self else { return }
+                                    self.openSimilarAsset(
+                                        screenshotsOrRecording: groupedScreenshots,
+                                        type: .screenshots
+                                    )
+                                }
                             )
                         )
                         
-                        self.isAnalyzing = false
+                        self.fetchAndAnalyzeVideos()
                     }
                 }
             }
         }
     }
 
+    // Search Video
+    private func fetchAndAnalyzeVideos() {
+        videoManagementService.fetchAndAnalyzeVideos(
+            onNewGroupFound: { [weak self] newVideo in
+                guard let self else { return }
+                print("FIND VIDEO")
+                let photoAssets: [PhotoAsset] = newVideo.enumerated().map { index, asset in
+                    PhotoAsset(isSelected: index != 0, asset: asset)
+                }
+                self.groupedVideo.append(photoAssets)
+
+            },
+            completion: { [weak self] in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    print("completion VIDEO")
+                    
+                    let videoAssets = self.groupedVideo.flatMap { $0 }
+                    
+                    self.listOfItems.append(
+                        PhotosAndVideosItemModel(
+                            leftTitle: "Video Duplicates",
+                            leftSubtitle: "\(videoAssets.count)",
+                            rightTitle: "",//String(format: "%.2f GB", screenshotSize),
+                            action: { [weak self] in
+                                guard let self else { return }
+                                self.openSimilarAsset(
+                                    photoOrVideo: groupedVideo,
+                                    type: .video
+                                )
+                            }
+                        )
+                    )
+                    
+                    self.fetchAndAnalyzeSceenRecords()
+                }
+                
+            }
+        )
+    }
+    
+    // Search Screen record
+    private func fetchAndAnalyzeSceenRecords() {
+        videoManagementService.fetchScreenRecordingsGroupedByMonth(
+            completion: { [weak self] sceenRecords in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.groupedScreenRecords = sceenRecords
+                    
+                    let screenRecordsAssets = self.groupedScreenRecords.flatMap { $0.groupAsset }
+                    
+                    PhotoVideoManager.shared.calculateStorageUsageForAssets(screenRecordsAssets) { screenRecordsSize in
+                        self.listOfItems.append(
+                            PhotosAndVideosItemModel(
+                                leftTitle: "Screen recordings",
+                                leftSubtitle: "\(screenRecordsAssets.count)",
+                                rightTitle: String(format: "%.2f GB", screenRecordsSize),
+                                action: { [weak self] in
+                                    guard let self else { return }
+                                    self.openSimilarAsset(
+                                        screenshotsOrRecording: groupedScreenRecords,
+                                        type: .screenRecords
+                                    )
+                                }
+                            )
+                        )
+                        
+                        self.isAnalyzing = false
+                    }
+                }
+
+            }
+        )
+    }
+    
     func calculateStorageUsageForAssets(_ assets: [PHAsset], completion: @escaping (Double) -> Void) {
         var totalSize: Double = 0.0
 
@@ -138,17 +231,15 @@ final class PhotosAndVideosViewModel: ObservableObject {
         }
     }
 
-    private func openScreenshots() {
-        router.openSimilarPhotos(
-            screenshots: groupedOnlyScreenshots,
-            type: .screenshots
-        )
-    }
-
-    private func openPhotos() {
-        router.openSimilarPhotos(
-            groupedPhotos: groupedPhotos,
-            type: .photos
+    private func openSimilarAsset(
+        photoOrVideo: [[PhotoAsset]]? = nil,
+        screenshotsOrRecording: [ScreenshotsAsset]? = nil,
+        type: SimilarPhotosType
+    ) {
+        router.openSimilarAsset(
+            photoOrVideo: photoOrVideo,
+            screenshotsOrRecording: screenshotsOrRecording,
+            type: type
         )
     }
 }

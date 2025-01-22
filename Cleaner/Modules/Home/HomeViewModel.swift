@@ -59,8 +59,8 @@ final class HomeViewModel: ObservableObject {
         self.router = router
                 
         self.isPhonoAndVideoLoaderActive = true
-        self.isСontactsLoaderActive = true
-        self.isCalendarLoaderActive = true
+//        self.isСontactsLoaderActive = true
+//        self.isCalendarLoaderActive = true
         
         calculateStorage()
         requestPhotoLibraryAccess()

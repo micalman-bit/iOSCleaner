@@ -52,8 +52,10 @@ struct SimilarPhotosView: View {
                 
             }
             
-            Spacer()
-        }.background(Color.hexToColor(hex: "#F4F7FA"))
+            Spacer(minLength: .zero)
+            
+        }
+        .background(Color.hexToColor(hex: "#F4F7FA"))
     }
     
     // MARK: - Header View
@@ -74,7 +76,7 @@ struct SimilarPhotosView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .asButton(style: .opacity, action: viewModel.dismiss)
             
-            Text("Similar Photos")
+            Text(viewModel.type == .photos ? "Similar Photos" : "Screenshots")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -98,7 +100,7 @@ struct SimilarPhotosView: View {
                     .padding(top: 110)
                 
                 VStack(spacing: .zero) {
-                    Text("22%")
+                    Text("\(viewModel.analysisProgress)%")
                         .font(.system(size: 62, weight: .semibold))
                     
                     Text("Analysis in\nprogress")
@@ -148,7 +150,7 @@ struct SimilarPhotosView: View {
     @ViewBuilder
     private func makeTopView() -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Similar Photos")
+            Text(viewModel.type == .photos ? "Similar Photos" : "Screenshots")
                 .font(.system(size: 32, weight: .semibold))
             
             Text("\(viewModel.totalPhotos) photos")
@@ -159,7 +161,7 @@ struct SimilarPhotosView: View {
     @ViewBuilder
     private func makePhotosSections() -> some View {
         switch viewModel.type {
-        case .photos:
+        case .photos, .video:
             ForEach(Array(viewModel.groupedPhotos.enumerated()), id: \.offset) { index, group in
                 VStack(alignment: .leading, spacing: 12) {
                     Text("\(group.count) similar")
@@ -170,22 +172,13 @@ struct SimilarPhotosView: View {
                 .padding(.top, 24)
             }
 
-//            ForEach(viewModel.groupedPhotos.indices, id: \.self) { index in
-//                VStack(alignment: .leading, spacing: 12) {
-//                    Text("\(viewModel.groupedPhotos[index].count) similar")
-//                        .textStyle(.h2)
-//                    
-//                    makeLazyVGrid(for: viewModel.groupedPhotos[index])
-//                }
-//                .padding(.top, 24)
-//            }
-        case .screenshots:
+        case .screenshots, .screenRecords:
             ForEach(viewModel.screenshots.indices, id: \.self) { index in
                 VStack(alignment: .leading, spacing: 12) {
                     Text(viewModel.screenshots[index].description)
                         .textStyle(.h2)
                     
-                    makeLazyVGrid(for: viewModel.screenshots[index].groupAsset)
+                    makeLazyVGrid(for: viewModel.groupedPhotos[index])
                 }
                 .padding(.top, 24)
             }

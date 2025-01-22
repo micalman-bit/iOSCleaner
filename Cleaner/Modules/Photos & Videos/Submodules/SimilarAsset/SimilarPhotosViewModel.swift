@@ -24,6 +24,8 @@ struct ScreenshotsAsset {
 enum SimilarPhotosType {
     case photos
     case screenshots
+    case video
+    case screenRecords
 }
 
 final class SimilarPhotosViewModel: ObservableObject {
@@ -56,6 +58,7 @@ final class SimilarPhotosViewModel: ObservableObject {
     
     @Published var screenshots: [ScreenshotsAsset] = []
     
+    @Published var analysisProgress: Int = 0 // Прогресс в процентах
     @Published var isAnalyzing: Bool
 
     // MARK: - Public Properties
@@ -73,8 +76,8 @@ final class SimilarPhotosViewModel: ObservableObject {
     init(
         service: SimilarPhotosService,
         router: SimilarPhotosRouter,
-        groupedPhotos: [[PhotoAsset]]? = nil,
-        screenshots: [ScreenshotsAsset]? = nil,
+        photoOrVideo: [[PhotoAsset]]? = nil,
+        screenshotsOrRecording: [ScreenshotsAsset]? = nil,
         type: SimilarPhotosType,
         assetManagementService: AssetManagementService = AssetManagementService()
     ) {
@@ -84,23 +87,23 @@ final class SimilarPhotosViewModel: ObservableObject {
         self.assetManagementService = assetManagementService
         
         switch type {
-        case .photos:
-            if let groupedPhotos {
-                self.groupedPhotos = groupedPhotos
+        case .photos, .video:
+            if let photoOrVideo {
+                self.groupedPhotos = photoOrVideo
                 
-                totalPhotos = "\(groupedPhotos.flatMap { $0 }.count)"
+//                totalPhotos = "\(groupedPhotos.flatMap { $0 }.count)"
                 
-                selectedPhotos = "\(groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
-
+//                selectedPhotos = "\(groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
+                
                 self.isAnalyzing = false
             } else {
                 self.isAnalyzing = true
                 self.loadAndAnalyzePhotos()
             }
-        case .screenshots:
-            if let screenshots {
+        case .screenshots, .screenRecords:
+            if let screenshotsOrRecording {
                 self.isAnalyzing = false
-                self.screenshots = screenshots
+                self.screenshots = screenshotsOrRecording
                 self.groupedPhotos = screenshots.map { $0.groupAsset }
                 
                 totalPhotos = "\(self.groupedPhotos.flatMap { $0 }.count)"
@@ -155,9 +158,7 @@ final class SimilarPhotosViewModel: ObservableObject {
         })
     }
     
-    // MARK: - Private Methods
-    
-    private func recalculateSelectedSize() {
+    func recalculateSelectedSize() {
         let selectedAssets = groupedPhotos.flatMap { $0 }.filter { $0.isSelected }
         
         PhotoVideoManager.shared.calculateStorageUsageForAssets(selectedAssets) { [weak self] totalSize in
@@ -167,6 +168,8 @@ final class SimilarPhotosViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Private Methods
+    
     private func calculateSelectedSize(for assets: [PhotoAsset]) {
         var totalSize: Int64 = 0
         let dispatchGroup = DispatchGroup()
@@ -200,6 +203,12 @@ final class SimilarPhotosViewModel: ObservableObject {
         isAnalyzing = true
         groupedPhotos = []
         
+        assetManagementService.progressUpdate = { [weak self] progress in
+            DispatchQueue.main.async {
+                self?.analysisProgress = Int(progress * 100)
+            }
+        }
+
         assetManagementService.fetchAndAnalyzePhotos(
             onNewGroupFound: { [weak self] newGroup in
                 DispatchQueue.main.async {
@@ -219,7 +228,7 @@ final class SimilarPhotosViewModel: ObservableObject {
         )
     }
 
- }
+}
 
 // ВЫНЕСТИ В ОТДЕЛЬНЫЙ ФАЙЛ
 import Photos
