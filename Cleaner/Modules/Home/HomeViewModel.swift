@@ -46,6 +46,9 @@ final class HomeViewModel: ObservableObject {
     private let router: HomeRouter
 
     private let photoVideoManager = PhotoVideoManager.shared
+    private let contactManager = ContactManager.shared
+    private let calendarManager = CalendarManager.shared
+
     private let contactStore = CNContactStore()
     private let eventStore = EKEventStore()
 
@@ -77,19 +80,41 @@ final class HomeViewModel: ObservableObject {
     }
     
     func didTapContact() {
-        guard isСontactsAvailable else {
-            showSettingsAlert("No access to Contacts. Please enable this in your settings.")
-            return
+
+        contactManager.requestContactsAccess { [weak self] granted in
+            if granted {
+                print("Access to contacts granted")
+                
+                self?.router.openContacts()
+                // Запрашиваем дубликаты
+//                self.contactManager.getDuplicateContacts { duplicates, isSearching in
+//                    if isSearching {
+//                        print("Scanning is still in progress...")
+//                    } else if let duplicates = duplicates {
+//                        print("Found duplicates: \(duplicates)")
+//                    }
+//                }
+            } else {
+                print("Access to contacts denied")
+            }
         }
+
+        
+//        guard isСontactsAvailable else {
+//            showSettingsAlert("No access to Contacts. Please enable this in your settings.")
+//            return
+//        }
         
         print("action didTapContact")
     }
 
     func didTapCalendar() {
-        guard isCalendarAvailable else {
-            showSettingsAlert("No access to Calendar. Please enable it in your settings to continue.")
-            return
-        }
+        clearOldCalendarEvents()
+        
+//        guard isCalendarAvailable else {
+//            showSettingsAlert("No access to Calendar. Please enable it in your settings to continue.")
+//            return
+//        }
         
         print("action didTapCalendar")
     }
@@ -235,19 +260,38 @@ final class HomeViewModel: ObservableObject {
     func clearOldCalendarEvents() {
         self.isCalendarLoaderActive = true
 
-        eventStore.requestAccess(to: .event) { [weak self] granted, error in
-            guard granted, error == nil else {
-                DispatchQueue.main.async {
-                    self?.isCalendarLoaderActive = false
-                    self?.isCalendarAvailable = false
-                    self?.showSettingsAlert("No access to Calendar. Please enable it in your settings to continue.")
-                }
-                return
+        calendarManager.requestCalendarAccess { [weak self] granted in
+            if granted {
+                print("Access to contacts granted")
+                
+                self?.router.openCalendar()
+                // Запрашиваем дубликаты
+//                self.contactManager.getDuplicateContacts { duplicates, isSearching in
+//                    if isSearching {
+//                        print("Scanning is still in progress...")
+//                    } else if let duplicates = duplicates {
+//                        print("Found duplicates: \(duplicates)")
+//                    }
+//                }
+            } else {
+                print("Access to contacts denied")
             }
+        }
+
+//        eventStore.requestAccess(to: .event) { [weak self] granted, error in
+//            guard granted, error == nil else {
+//                DispatchQueue.main.async {
+//                    self?.isCalendarLoaderActive = false
+//                    self?.isCalendarAvailable = false
+//                    self?.showSettingsAlert("No access to Calendar. Please enable it in your settings to continue.")
+//                }
+//                return
+//            }
             
+//            CalendarManager
             // Fetch and delete old events
 //            self?.deleteOldEvents()
-        }
+//        }
     }
 
     private func deleteOldEvents() {

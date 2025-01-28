@@ -21,16 +21,18 @@ struct ScreenshotsAsset {
     let groupAsset: [PhotoAsset]
 }
 
-enum SimilarPhotosType {
+enum SimilarAssetType {
     case photos
     case screenshots
     case video
     case screenRecords
 }
 
-final class SimilarPhotosViewModel: ObservableObject {
+final class SimilarAssetViewModel: ObservableObject {
 
     // MARK: - Published Properties
+    
+    @Published var title: String
     
     @Published var totalPhotos: String = "0"
 
@@ -63,22 +65,22 @@ final class SimilarPhotosViewModel: ObservableObject {
 
     // MARK: - Public Properties
 
-    var type: SimilarPhotosType
+    var type: SimilarAssetType
     
     // MARK: - Private Properties
 
-    private let service: SimilarPhotosService
-    private let router: SimilarPhotosRouter
+    private let service: SimilarAssetService
+    private let router: SimilarAssetRouter
     private let assetManagementService: AssetManagementService
 
     // MARK: - Init
 
     init(
-        service: SimilarPhotosService,
-        router: SimilarPhotosRouter,
+        service: SimilarAssetService,
+        router: SimilarAssetRouter,
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
-        type: SimilarPhotosType,
+        type: SimilarAssetType,
         assetManagementService: AssetManagementService = AssetManagementService()
     ) {
         self.service = service
@@ -86,16 +88,27 @@ final class SimilarPhotosViewModel: ObservableObject {
         self.type = type
         self.assetManagementService = assetManagementService
         
+        // TODO: - Вынести по отдельным методам
+        switch type {
+        case .photos:
+            title = "Similar Photos"
+        case .video:
+            title = "Video Duplicates"
+        case .screenshots:
+            title = "Screenshots"
+        case .screenRecords:
+            title = "Screen Recordings"
+        }
+        
         switch type {
         case .photos, .video:
             if let photoOrVideo {
+                self.isAnalyzing = false
                 self.groupedPhotos = photoOrVideo
                 
-//                totalPhotos = "\(groupedPhotos.flatMap { $0 }.count)"
+                totalPhotos = "\(groupedPhotos.flatMap { $0 }.count)"
                 
-//                selectedPhotos = "\(groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
-                
-                self.isAnalyzing = false
+                selectedPhotos = "\(groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
             } else {
                 self.isAnalyzing = true
                 self.loadAndAnalyzePhotos()

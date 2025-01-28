@@ -130,7 +130,7 @@ struct HomeView: View {
             Spacer().frame(height: 20)
             
             HStack(spacing: 6) {
-                Image("cleanLogo")
+                Image("")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 24, height: 24)

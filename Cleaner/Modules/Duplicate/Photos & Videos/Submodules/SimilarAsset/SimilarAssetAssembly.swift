@@ -11,12 +11,12 @@ enum SimilarAssetAssembly {
     static func openSimilarAsset(
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
-        type: SimilarPhotosType
+        type: SimilarAssetType
     ) -> UIViewController {
-        let router = SimilarPhotosRouter()
-        let service = SimilarPhotosService()
+        let router = SimilarAssetRouter()
+        let service = SimilarAssetService()
         
-        let viewModel = SimilarPhotosViewModel(
+        let viewModel = SimilarAssetViewModel(
             service: service,
             router: router,
             photoOrVideo: photoOrVideo,
@@ -24,7 +24,7 @@ enum SimilarAssetAssembly {
             type: type
         )
 
-        let view = SimilarPhotosView(viewModel: viewModel)
+        let view = SimilarAssetView(viewModel: viewModel)
         let viewController = TAHostingController(rootView: view)
 
         router.parentController = viewController

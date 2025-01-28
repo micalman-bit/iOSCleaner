@@ -234,7 +234,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
     private func openSimilarAsset(
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
-        type: SimilarPhotosType
+        type: SimilarAssetType
     ) {
         router.openSimilarAsset(
             photoOrVideo: photoOrVideo,

@@ -15,7 +15,7 @@ final class PhotosAndVideosRouter: DefaultRouter {
     func openSimilarAsset(
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
-        type: SimilarPhotosType
+        type: SimilarAssetType
     ) {
         guard let parentController else { return }
         let viewConreoller = SimilarAssetAssembly.openSimilarAsset(

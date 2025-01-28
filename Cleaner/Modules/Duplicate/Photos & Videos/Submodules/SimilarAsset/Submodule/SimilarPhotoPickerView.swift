@@ -77,7 +77,7 @@ struct SimilarPhotoPickerView: View {
     @ViewBuilder private func makeContentView() -> some View {
         Spacer(minLength: .zero)
 
-        AssetContentView(asset: viewModel.selectedImage.asset)
+        AssetContentView(photoAsset: viewModel.selectedImage)
                 .frame(maxWidth: .screenWidth, maxHeight: .screenWidth * 1.3)
                 .aspectRatio(contentMode: .fit)
 
@@ -87,7 +87,14 @@ struct SimilarPhotoPickerView: View {
             HStack(spacing: 10) {
                 ForEach(viewModel.assets, id: \.id) { asset in
                     Button(action: {
-                        viewModel.selectedImage = asset
+                        if let index = viewModel.assets.firstIndex(where: { $0.id == asset.id }) {
+                            // Снимаем выбор с текущего изображения
+                            if let selectedIndex = viewModel.assets.firstIndex(where: { $0.id == viewModel.selectedImage.id }) {
+                            }
+
+                            viewModel.selectedImage = viewModel.assets[index]
+                        }
+
                     }) {
                         AssetImageView(asset: asset.asset)
                             .frame(width: 100, height: 100)
@@ -106,19 +113,20 @@ struct SimilarPhotoPickerView: View {
 }
 
 struct AssetContentView: View {
-    let asset: PHAsset
+    let photoAsset: PhotoAsset
 
     var body: some View {
         Group {
-            switch asset.mediaType {
+            switch photoAsset.asset.mediaType {
             case .image:
                 // Отображаем фото
-                AssetImageView(asset: asset)
+                AssetImageView(asset: photoAsset.asset)
                     .aspectRatio(contentMode: .fit)
 
             case .video:
                 // Отображаем видео
-                AssetVideoView(asset: asset)
+                AssetVideoView(asset: photoAsset.asset)
+                    .frame(width: .screenWidth, height: .screenWidth)
 
             default:
                 // На всякий случай какой-то заглушечный вид
@@ -172,91 +180,49 @@ struct AssetImageView: View {
 }
 
 import SwiftUI
-import Photos
+import AVFoundation
 import AVKit
-import Combine
 
-struct AssetVideoView: View {
+struct AssetVideoRepresentableView: UIViewControllerRepresentable {
     let asset: PHAsset
-    
-    @State private var player: AVPlayer? = nil
-    @State private var isPlaying = false
 
-    // Отслеживаем конец воспроизведения (через Combine)
-    @State private var endObserver: AnyCancellable?
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let playerViewController = AVPlayerViewController()
 
-    var body: some View {
-        ZStack {
-            // 1. Основной плеер
-            if let player = player {
-                VideoPlayer(player: player)
-                    // Отключаем стандартный UI плеера, чтобы делать кастомное управление
-                    .disabled(true)
-                    
-                    // 2. Жест нажатия по самому видео:
-                    //    Если видео играет, ставим на паузу.
-                    .onTapGesture {
-                        guard isPlaying else { return } // Если уже на паузе, ничего не делаем
-                        player.pause()
-                        isPlaying = false
-                    }
-                    
-                    // 3. Подписка на событие окончания воспроизведения
-                    .onAppear {
-                        endObserver = NotificationCenter.default
-                            .publisher(for: .AVPlayerItemDidPlayToEndTime, object: player.currentItem)
-                            .sink { _ in
-                                // Когда ролик доходит до конца, перематываем в начало и паузим
-                                player.seek(to: .zero)
-                                player.pause()
-                                isPlaying = false
-                            }
-                    }
-                    
-                    // 4. Остановка воспроизведения, если уходим с экрана
-                    .onDisappear {
-                        player.pause()
-                        endObserver?.cancel()
-                    }
-            } else {
-                // Пока AVAsset не загружен или не сконвертирован в AVPlayer
-                Color.black
-                    .onAppear {
-                        loadVideo()
-                    }
-            }
-            
-            // 5. Кнопка "Play"
-            if !isPlaying {
-                Button(action: {
-                    guard let player = player else { return }
-                    // Начинаем (или продолжаем) воспроизведение
-                    // (при желании можно всегда перематывать в начало: player.seek(to: .zero))
-                    player.play()
-                    isPlaying = true
-                }) {
-                    Image(systemName: "play.circle.fill")
-                        .resizable()
-                        .frame(width: 80, height: 80)
-                        .foregroundColor(.white)
-                }
-            }
+        // Загрузка видео из PHAsset
+        loadVideo { avPlayer in
+            playerViewController.player = avPlayer
+            playerViewController.showsPlaybackControls = true // Включаем стандартные элементы управления
         }
+
+        return playerViewController
     }
-    
-    private func loadVideo() {
+
+    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
+        // Здесь можно обновить состояние плеера при необходимости
+    }
+
+    private func loadVideo(completion: @escaping (AVPlayer) -> Void) {
         let options = PHVideoRequestOptions()
-        // Разрешаем подгрузку из iCloud, если это нужно
         options.isNetworkAccessAllowed = true
 
         PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
-            guard let avAsset = avAsset as? AVURLAsset else {
-                return
-            }
+            guard let avAsset = avAsset as? AVURLAsset else { return }
             DispatchQueue.main.async {
-                // Создаём AVPlayer, но НЕ вызываем .play()
-                self.player = AVPlayer(url: avAsset.url)
+                let player = AVPlayer(url: avAsset.url)
+                completion(player)
             }
+        }
+    }
+}
+
+struct AssetVideoView: View {
+    let asset: PHAsset // Добавляем передаваемый параметр
+
+    var body: some View {
+        VStack {
+            AssetVideoRepresentableView(asset: asset)
+                .frame(height: 300)
         }
     }
 }

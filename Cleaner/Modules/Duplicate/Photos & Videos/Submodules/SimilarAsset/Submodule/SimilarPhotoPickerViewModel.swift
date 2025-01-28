@@ -13,6 +13,7 @@ final class SimilarPhotoPickerViewModel: ObservableObject {
     // MARK: - Published Properties
 
     @Published var selectedImage: PhotoAsset
+    @Published var assets: [PhotoAsset]
 
     // MARK: - Private Properties
 
@@ -22,7 +23,6 @@ final class SimilarPhotoPickerViewModel: ObservableObject {
     
     // MARK: - Public Properties
 
-    var assets: [PhotoAsset]
     
     // MARK: - Init
 

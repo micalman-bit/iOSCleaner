@@ -8,15 +8,15 @@
 import SwiftUI
 import Photos
 
-struct SimilarPhotosView: View {
+struct SimilarAssetView: View {
     
     // MARK: - Private Properties
     
-    @ObservedObject private var viewModel: SimilarPhotosViewModel
+    @ObservedObject private var viewModel: SimilarAssetViewModel
     
     // MARK: - Init
     
-    init(viewModel: SimilarPhotosViewModel) {
+    init(viewModel: SimilarAssetViewModel) {
         self.viewModel = viewModel
     }
     
@@ -76,7 +76,7 @@ struct SimilarPhotosView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .asButton(style: .opacity, action: viewModel.dismiss)
             
-            Text(viewModel.type == .photos ? "Similar Photos" : "Screenshots")
+            Text(viewModel.title)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -150,7 +150,7 @@ struct SimilarPhotosView: View {
     @ViewBuilder
     private func makeTopView() -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(viewModel.type == .photos ? "Similar Photos" : "Screenshots")
+            Text(viewModel.title)
                 .font(.system(size: 32, weight: .semibold))
             
             Text("\(viewModel.totalPhotos) photos")
@@ -233,88 +233,14 @@ struct SimilarPhotosView: View {
             viewModel.openSimilarPhotoPicker(groupInex: groupIndex, selectedItemInex: assetIndex)
         }
     }
-
-//    private func handlePhotoTap(groupIndex: Int, asset: PhotoAsset) {
-//        if let selectedIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.asset.localIdentifier == asset.asset.localIdentifier }) {
-//            viewModel.openSimilarPhotoPicker(
-//                groupInex: groupIndex,
-//                selectedItemInex: selectedIndex
-//            )
-//        }
-//    }
-}
-
-struct PhotoThumbnailView: View {
-    
-    let asset: PHAsset
-
-    @State private var image: UIImage? = nil
-
-    var body: some View {
-        Group {
-            if let image = image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 176, height: 178)
-                    .clipped()
-            } else {
-                Rectangle()
-                    .fill(Color.gray)
-                    .frame(width: 176, height: 178)
-            }
-        }
-        .onAppear {
-            loadThumbnail()
-        }
-    }
-
-    private func loadThumbnail() {
-        let options = PHImageRequestOptions()
-        options.isNetworkAccessAllowed = true // Разрешить загрузку из iCloud
-        options.deliveryMode = .highQualityFormat
-        options.resizeMode = .none // .exact
-
-        PHImageManager.default().requestImage(
-            for: asset,
-            targetSize: CGSize(
-                width: 176,
-                height: 178
-            ),
-            contentMode: .aspectFit,
-            options: options
-        ) { image, info in
-            if let image = image {
-                self.image = image
-            } else if let error = info?[PHImageErrorKey] as? Error {
-                print("Error loading image: \(error.localizedDescription)")
-            } else {
-                print("No image found for asset: \(self.asset.localIdentifier)")
-            }
-        }
-    }
-}
-
-struct CheckBoxView: View {
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Circle()
-                .strokeBorder(isSelected ? Color.blue : Color.gray, lineWidth: 2)
-                .background(Circle().fill(isSelected ? Color.blue.opacity(0.3) : Color.clear))
-                .frame(width: 24, height: 24)
-        }
-    }
 }
 
 struct PhotoView_Previews: PreviewProvider {
     static var previews: some View {
-        SimilarPhotosView(
-            viewModel: SimilarPhotosViewModel(
-                service: SimilarPhotosService(),
-                router: SimilarPhotosRouter(),
+        SimilarAssetView(
+            viewModel: SimilarAssetViewModel(
+                service: SimilarAssetService(),
+                router: SimilarAssetRouter(),
                 type: .screenshots
             )
         )

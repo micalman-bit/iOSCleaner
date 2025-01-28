@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class SimilarPhotosService {
+final class SimilarAssetService {
     func getMethod() -> String {
         return "Data"
     }

@@ -8,7 +8,7 @@
 import UIKit
 import Photos
 
-final class SimilarPhotosRouter: DefaultRouter {
+final class SimilarAssetRouter: DefaultRouter {
     // MARK: - Public Properties
 
     weak var parentController: UIViewController?

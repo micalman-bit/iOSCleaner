@@ -15,11 +15,21 @@ final class HomeRouter: DefaultRouter {
     func openSimilarPhotos() {
         guard let parentController else { return }
         let viewConreoller = PhotosAndVideosAssembly.openPhotosAndVideos()
-//        let viewConreoller = SimilarPhotosAssembly.openSimilarPhotos()
-
         push(viewConreoller, on: parentController)
     }
-    
+
+    func openContacts() {
+        guard let parentController else { return }
+        let viewConreoller = ContactsAssembly.openContacts()
+        push(viewConreoller, on: parentController)
+    }
+
+    func openCalendar() {
+        guard let parentController else { return }
+        let viewConreoller = CalendarAssembly.openCalendar()
+        push(viewConreoller, on: parentController)
+    }
+
     func openSettings() {
         guard let parentController else { return }
         let viewConreoller = SettingAssembly.openSetting()
