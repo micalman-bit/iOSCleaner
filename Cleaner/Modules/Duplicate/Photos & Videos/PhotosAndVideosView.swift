@@ -116,8 +116,9 @@ struct PhotosAndVideosView: View {
                     .padding(top: 110)
                 
                 VStack(spacing: .zero) {
-                    Text("22%")
+                    Text(viewModel.timerText)
                         .font(.system(size: 62, weight: .semibold))
+                        .foregroundColor(.black)
                     
                     Text("Analysis in\nprogress")
                         .textStyle(.flatCount)

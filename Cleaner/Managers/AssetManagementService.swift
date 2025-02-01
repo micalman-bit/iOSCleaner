@@ -7,381 +7,630 @@
 
 import Photos
 import Vision
-import Combine
-import SwiftUI
 import CoreImage
-import AVFoundation
+import UIKit
 import CryptoKit
 
+// Модель для найденной группы дубликатов
+struct DuplicateAssetGroup: Identifiable {
+    let id = UUID()
+    let assets: [PhotoAsset]
+}
 
+/// Пример менеджера для поиска дубликатов фото (без @Published).
+/// Использует fallback, синхронизацию через serial queue и autoreleasepool.
 final class AssetManagementService {
-
-    // MARK: - Properties
-
-    private let similarityThreshold: Float = 0.9
-    private let maxConcurrentTasks = 2
-    private let memoryLimit: Int64 = 1_500 * 1_024 * 1_024
-    private let batchSize = 100
-
-    // Используем множество для проверки уникальности групп
-    private var groupedPhotoIdentifiers: [Set<String>] = []
-    private let syncQueue = DispatchQueue(label: "com.assetManagement.syncQueue")
-
-    // Новый замыкание для обновления прогресса
-    var progressUpdate: ((Double) -> Void)?
-
-    // MARK: - Fetch and Analyze Photos
-
-    func fetchAndAnalyzePhotos(
-        onNewGroupFound: @escaping ([PHAsset]) -> Void,
-        completion: @escaping () -> Void
-    ) {
-        PHPhotoLibrary.requestAuthorization { status in
+    
+    // MARK: - Singleton
+    static let shared = AssetManagementService()
+    
+    // MARK: - Внутреннее состояние
+    
+    private var isScanning: Bool = false
+    private var scanProgress: Double = 0.0
+    private var duplicatePhotoGroups: [DuplicateAssetGroup] = []
+    
+    // MARK: - Настройки
+    
+    private let similarityThreshold: Float = 0.9   // Порог Vision FeaturePrint
+    private let batchSize = 200                   // Размер батча
+    
+    // Фоновая очередь (OperationQueue)
+    private let processingQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.yourapp.AssetManagementService.processingQueue"
+        queue.maxConcurrentOperationCount = 2
+        return queue
+    }()
+    
+    // Отдельная serial-очередь для потокобезопасного доступа к hashGroups
+    private let syncQueue = DispatchQueue(label: "com.yourapp.AssetManagementService.hashGroupsSyncQueue")
+    
+    // MARK: - Вспомогательные поля
+    
+    private var totalAssetsCount: Int = 0
+    private var processedCount: Int = 0
+    
+    /// Для группировки по хэшу
+    private var hashGroups: [String: [PHAsset]] = [:]
+    /// Чтобы не добавлять одинаковые группы
+    private var groupedPhotoIdentifiers: Set<Set<String>> = []
+    
+    // MARK: - Публичные методы
+    
+    /// 1. Запрашиваем доступ к библиотеке и при успехе запускаем скан.
+    func requestGalleryAccessAndStartScan() {
+        print("[AssetManagementService] requestGalleryAccessAndStartScan called.")
+        PHPhotoLibrary.requestAuthorization { [weak self] status in
+            guard let self = self else { return }
             guard status == .authorized else {
-                print("Access to Photo Library not authorized.")
-                completion()
+                print("[AssetManagementService] No access to photo library. Status = \(status.rawValue)")
                 return
             }
-
-            let fetchOptions = PHFetchOptions()
-            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-
-            let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-            let assets = fetchResult.objects(at: IndexSet(0..<fetchResult.count))
-
-            let totalAssets = assets.count
-            var processedAssets = 0
-
-            if assets.isEmpty {
-                print("No photos found in the library.")
-                completion()
-            } else {
-                print("Fetched \(assets.count) assets from the photo library.")
-                self.analyzePhotosInBatches(
-                    assets: assets,
-                    onNewGroupFound: onNewGroupFound,
-                    progressHandler: { [weak self] in
-                        processedAssets += 1
-                        let progress = Double(processedAssets) / Double(totalAssets)
-                        self?.progressUpdate?(progress) // Обновляем прогресс
-                    },
-                    completion: completion
-                )
+            print("[AssetManagementService] Authorization granted. Start scanning in background.")
+            DispatchQueue.global(qos: .background).async {
+                self.startScanningForDuplicates()
             }
         }
     }
-
-    private func analyzePhotosInBatches(
-        assets: [PHAsset],
-        onNewGroupFound: @escaping ([PHAsset]) -> Void,
-        progressHandler: @escaping () -> Void,
-        completion: @escaping () -> Void
-    ) {
-        let totalAssets = assets.count
+    
+    /// Остановить сканирование
+    func stopScan() {
+        print("[AssetManagementService] stopScan called. Cancelling all operations.")
+        processingQueue.cancelAllOperations()
+        isScanning = false
+    }
+    
+    /// Получить текущий статус (сканируется, прогресс, группы)
+    func getScanStatus() -> (isScanning: Bool, progress: Double, groups: [DuplicateAssetGroup]) {
+        print("[AssetManagementService] getScanStatus -> isScanning=\(isScanning), progress=\(scanProgress), groupsCount=\(duplicatePhotoGroups.count)")
+        return (isScanning, scanProgress, duplicatePhotoGroups)
+    }
+    
+    // MARK: - Основная логика сканирования
+    
+    private func startScanningForDuplicates() {
+        print("[AssetManagementService] startScanningForDuplicates -> reset state and begin.")
+        
+        // Сбрасываем состояние
+        isScanning = true
+        scanProgress = 0.0
+        duplicatePhotoGroups = []
+        
+        syncQueue.sync {
+            hashGroups.removeAll()
+        }
+        groupedPhotoIdentifiers.removeAll()
+        totalAssetsCount = 0
+        processedCount = 0
+        
+        // Загружаем все фотки
+        let allAssets = fetchAllImageAssets()
+        totalAssetsCount = allAssets.count
+        
+        print("[AssetManagementService] totalAssetsCount = \(totalAssetsCount)")
+        
+        guard !allAssets.isEmpty else {
+            print("[AssetManagementService] No photos in library, finishing scan.")
+            finishScan()
+            return
+        }
+        
+        // Обрабатываем батчами
         var currentIndex = 0
-
-        let dispatchGroup = DispatchGroup()
-
-        while currentIndex < totalAssets {
-            let endIndex = min(currentIndex + batchSize, totalAssets)
-            let currentBatch = Array(assets[currentIndex..<endIndex])
-
-            dispatchGroup.enter()
-            analyzePhotos(batch: currentBatch, onNewGroupFound: onNewGroupFound) {
-                currentIndex = endIndex
-                dispatchGroup.leave()
+        while currentIndex < allAssets.count {
+            if processingQueue.operationCount > 10 {
+                Thread.sleep(forTimeInterval: 0.1)
             }
+            
+            let endIndex = min(currentIndex + batchSize, allAssets.count)
+            let batch = Array(allAssets[currentIndex..<endIndex])
+            currentIndex = endIndex
+            
+            let operation = BlockOperation { [weak self] in
+                guard let self = self else { return }
+                print("[AssetManagementService] BlockOperation start -> batch size=\(batch.count)")
+                self.processHashBatch(batch)
+                print("[AssetManagementService] BlockOperation finished -> batch size=\(batch.count)")
+            }
+            processingQueue.addOperation(operation)
         }
-
-        dispatchGroup.notify(queue: .main) {
-            print("All batches processed.")
-            completion()
+        
+        // Когда все батчи завершены, делаем уточняющий поиск
+        processingQueue.addBarrierBlock { [weak self] in
+            guard let self = self else { return }
+            print("[AssetManagementService] barrierBlock -> analyze duplicates in hashGroups.")
+            self.findDuplicatesWithinHashGroups()
+            self.finishScan()
         }
     }
-
-    private func analyzePhotos(
-        batch: [PHAsset],
-        onNewGroupFound: @escaping ([PHAsset]) -> Void,
-        completion: @escaping () -> Void
-    ) {
-        let semaphore = DispatchSemaphore(value: maxConcurrentTasks)
-        var processedAssets: Set<String> = [] // Уникальные идентификаторы обработанных активов
-
-        let dispatchGroup = DispatchGroup()
-
+    
+    private func finishScan() {
+        isScanning = false
+        scanProgress = 1.0
+        print("[AssetManagementService] SCANNING FINISHED. total duplicate groups = \(duplicatePhotoGroups.count)")
+    }
+    
+    // MARK: - Обработка батча (хэширование)
+    
+    private func processHashBatch(_ batch: [PHAsset]) {
+        print("[AssetManagementService] processHashBatch -> count=\(batch.count)")
+        
         for asset in batch {
-            guard !processedAssets.contains(asset.localIdentifier) else { continue }
-
-            dispatchGroup.enter()
-            semaphore.wait()
-
-            autoreleasepool { // Освобождаем память после обработки каждой итерации
-                guard !isMemoryUsageExceeded() else {
-                    print("Memory limit exceeded, skipping further processing.")
-                    dispatchGroup.leave()
-                    semaphore.signal()
-                    return
+            if processingQueue.isSuspended {
+                print("[AssetManagementService] Queue suspended, exiting batch early.")
+                return
+            }
+            if let op = OperationQueue.current?.operations.first, op.isCancelled {
+                print("[AssetManagementService] Operation cancelled, exiting batch early.")
+                return
+            }
+            
+            // Важно: autoreleasepool, чтобы объекты освобождались сразу
+            autoreleasepool {
+                // 1. Пытаемся получить миниатюру (64x64) через requestImage
+                if let thumbnail = loadThumbnailSync(for: asset, targetSize: CGSize(width: 64, height: 64)) {
+                    let hashValue = averageHash(for: thumbnail)
+                    
+                    // Пишем в hashGroups через serial queue
+                    syncQueue.sync {
+                        hashGroups[hashValue, default: []].append(asset)
+                    }
+                } else {
+                    print("[AssetManagementService] requestImage => nil for thumbnail. asset=\(asset.localIdentifier)")
+                    
+                    // 2. fallback (через requestImageDataAndOrientation)
+                    if let fallbackImage = loadThumbnailDataFallback(for: asset, targetSize: CGSize(width: 64, height: 64)) {
+                        let hashValue = averageHash(for: fallbackImage)
+                        syncQueue.sync {
+                            hashGroups[hashValue, default: []].append(asset)
+                        }
+                    } else {
+                        print("[AssetManagementService] fallback also failed => skip asset \(asset.localIdentifier)")
+                    }
                 }
-
-                loadImage(for: asset, targetSize: CGSize(width: 300, height: 300)) { [weak self] image in
-                    defer {
-                        semaphore.signal()
-                        dispatchGroup.leave()
+                incrementProgress()
+            }
+        }
+        print("[AssetManagementService] processHashBatch done.")
+    }
+    
+    // MARK: - Поиск дубликатов (уточняющее сравнение)
+    
+    private func findDuplicatesWithinHashGroups() {
+        print("[AssetManagementService] findDuplicatesWithinHashGroups -> reading hashGroups..")
+        
+        // Читаем snapshot словаря из syncQueue (чтобы не держать лок долго)
+        let snapshot: [String: [PHAsset]] = syncQueue.sync { hashGroups }
+        print("[AssetManagementService] findDuplicatesWithinHashGroups -> total hashGroups=\(snapshot.count)")
+        
+        var groupIndex = 0
+        for (hashKey, assetsInHash) in snapshot {
+            guard assetsInHash.count > 1 else { continue }
+            groupIndex += 1
+            
+            print("[AssetManagementService]  [\(groupIndex)] Checking hash=\(hashKey), count=\(assetsInHash.count)")
+            
+            var visited = Set<String>()
+            for i in 0..<assetsInHash.count {
+                let asset1 = assetsInHash[i]
+                if visited.contains(asset1.localIdentifier) { continue }
+                
+                // загружаем «большее» изображение (600x600) c fallback
+                guard let image1 = loadFullImageOrFallback(for: asset1, targetSize: CGSize(width: 600, height: 600)) else {
+                    print("  Could not load full image for asset1 \(asset1.localIdentifier)")
+                    continue
+                }
+                
+                var duplicates = [PHAsset]()
+                
+                for j in (i+1)..<assetsInHash.count {
+                    let asset2 = assetsInHash[j]
+                    if visited.contains(asset2.localIdentifier) { continue }
+                    
+                    guard let image2 = loadFullImageOrFallback(for: asset2, targetSize: CGSize(width: 600, height: 600)) else {
+                        print("  Could not load full image for asset2 \(asset2.localIdentifier)")
+                        continue
                     }
-
-                    guard let self = self, let image = image else {
-                        print("Failed to load image for asset: \(asset.localIdentifier)")
-                        return
+                    
+                    if areImagesLikelyDuplicates(image1, image2) {
+                        print("  => Found duplicates: \(asset1.localIdentifier) & \(asset2.localIdentifier)")
+                        duplicates.append(asset2)
+                        visited.insert(asset2.localIdentifier)
                     }
-
-                    var duplicates: [PHAsset] = []
-
-                    self.syncQueue.sync {
-                        for otherAsset in batch where otherAsset.localIdentifier != asset.localIdentifier {
-                            guard !processedAssets.contains(otherAsset.localIdentifier) else { continue }
-
-                            if let otherImage = self.loadImageSync(for: otherAsset, targetSize: CGSize(width: 300, height: 300)),
-                               self.areImagesVisuallySimilar(image1: image, image2: otherImage)
-                                || self.areImagesEqual(image, otherImage)
-                                || self.compareUsingHash(image, otherImage)
-                                || (self.calculateImageSimilarity(image1: image, image2: otherImage) ?? 1.0) < self.similarityThreshold {
-                                duplicates.append(otherAsset)
-                            }
-
-                            if self.isMemoryUsageExceeded() {
-                                print("Memory limit exceeded, stopping analysis for this group.")
-                                return
-                            }
-                        }
-
-                        if !duplicates.isEmpty {
-                            let newGroup = [asset] + duplicates
-                            duplicates.forEach { processedAssets.insert($0.localIdentifier) }
-                            processedAssets.insert(asset.localIdentifier)
-
-                            let newGroupSet = Set(newGroup.map { $0.localIdentifier })
-
-                            // Проверяем уникальность группы
-                            if !self.groupedPhotoIdentifiers.contains(newGroupSet) {
-                                self.groupedPhotoIdentifiers.append(newGroupSet)
-                                DispatchQueue.main.async {
-                                    onNewGroupFound(newGroup)
-                                }
-                            }
-                        }
+                }
+                
+                if !duplicates.isEmpty {
+                    duplicates.insert(asset1, at: 0)
+                    visited.insert(asset1.localIdentifier)
+                    
+                    let photoAssets = duplicates.map { PhotoAsset(isSelected: false, asset: $0) }
+                    let groupSet = Set(photoAssets.map { $0.asset.localIdentifier })
+                    if !groupedPhotoIdentifiers.contains(groupSet) {
+                        groupedPhotoIdentifiers.insert(groupSet)
+                        let group = DuplicateAssetGroup(assets: photoAssets)
+                        duplicatePhotoGroups.append(group)
+                        print("  => Created new group with size=\(photoAssets.count)")
+                    } else {
+                        print("  => Group already known, skip.")
                     }
                 }
             }
         }
-
-        dispatchGroup.notify(queue: .main) {
-            print("Batch processed.")
-            completion()
+        print("[AssetManagementService] findDuplicatesWithinHashGroups done. totalGroups=\(duplicatePhotoGroups.count)")
+    }
+    
+    // MARK: - Инкремент прогресса
+    
+    private func incrementProgress() {
+        processedCount += 1
+        if totalAssetsCount > 0 {
+            scanProgress = Double(processedCount) / Double(totalAssetsCount)
+        }
+        // Раз в 50 выводим прогресс
+        if processedCount % 50 == 0 {
+            print("[AssetManagementService] progress: \(processedCount)/\(totalAssetsCount) -> \(Int(scanProgress*100))%")
         }
     }
-
-    // MARK: - Memory Management
-
-    private func isMemoryUsageExceeded() -> Bool {
-        let usedMemory = getUsedMemory()
-        return usedMemory > memoryLimit
-    }
-
-    private func getUsedMemory() -> Int64 {
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
-        let result: kern_return_t = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
-            }
+    
+    // MARK: - Загрузка ассетов
+    
+    private func fetchAllImageAssets() -> [PHAsset] {
+        print("[AssetManagementService] fetchAllImageAssets -> start fetch")
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        
+        let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        var assets = [PHAsset]()
+        assets.reserveCapacity(fetchResult.count)
+        
+        fetchResult.enumerateObjects { asset, _, _ in
+            assets.append(asset)
         }
-        return result == KERN_SUCCESS ? Int64(info.resident_size) : 0
+        print("[AssetManagementService] fetchAllImageAssets -> found \(assets.count) assets.")
+        return assets
     }
+    
+    // MARK: - Методы загрузки (requestImage)
 
-    // MARK: - Image Loading
-
-    private func loadImage(for asset: PHAsset, targetSize: CGSize, completion: @escaping (UIImage?) -> Void) {
+    /// Загрузка миниатюры (64x64). Может вернуть nil, если системный preview не найден.
+    private func loadThumbnailSync(for asset: PHAsset, targetSize: CGSize) -> UIImage? {
         let options = PHImageRequestOptions()
         options.isNetworkAccessAllowed = true
-        options.deliveryMode = .highQualityFormat
-        options.resizeMode = .exact
-
-        PHImageManager.default().requestImage(
-            for: asset,
-            targetSize: targetSize,
-            contentMode: .aspectFit,
-            options: options
-        ) { image, _ in
-            completion(image)
-        }
-    }
-
-    private func loadImageSync(for asset: PHAsset, targetSize: CGSize) -> UIImage? {
-        let options = PHImageRequestOptions()
         options.isSynchronous = true
-        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .fast
+        options.deliveryMode = .fastFormat
+        
+        var result: UIImage?
+        PHImageManager.default().requestImage(
+            for: asset,
+            targetSize: targetSize,
+            contentMode: .aspectFill,
+            options: options
+        ) { image, info in
+            result = image
+        }
+        return result
+    }
+    
+    /// Загрузка «полного» изображения (600x600). Может вернуть nil.
+    private func loadFullImageSync(for asset: PHAsset, targetSize: CGSize) -> UIImage? {
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = true
         options.resizeMode = .exact
-
-        var resultImage: UIImage?
+        options.deliveryMode = .highQualityFormat
+        
+        var result: UIImage?
         PHImageManager.default().requestImage(
             for: asset,
             targetSize: targetSize,
             contentMode: .aspectFit,
             options: options
-        ) { image, _ in
-            resultImage = image
+        ) { image, info in
+            result = image
+        }
+        return result
+    }
+    
+    // MARK: - Fallback (requestImageDataAndOrientation)
+
+    /// Если requestImage не дал результат, пробуем достать сырые данные и сами ресайзить до 64x64
+    private func loadThumbnailDataFallback(for asset: PHAsset, targetSize: CGSize) -> UIImage? {
+        guard let original = loadImageDataSync(for: asset) else {
+            return nil
+        }
+        return resizeImage(original, to: targetSize)
+    }
+    
+    /// Если requestImage не дал результат, здесь для «полной» загрузки
+    private func loadFullImageOrFallback(for asset: PHAsset, targetSize: CGSize) -> UIImage? {
+        if let img = loadFullImageSync(for: asset, targetSize: targetSize) {
+            return img
+        }
+        guard let original = loadImageDataSync(for: asset) else {
+            return nil
+        }
+        return resizeImage(original, to: targetSize)
+    }
+    
+    /// requestImageDataAndOrientation: получаем сырые байты (JPEG/HEIC/…), если доступны
+    private func loadImageDataSync(for asset: PHAsset) -> UIImage? {
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = true
+        
+        var resultImage: UIImage?
+        PHImageManager.default().requestImageDataAndOrientation(
+            for: asset,
+            options: options
+        ) { data, dataUTI, orientation, info in
+            if let data = data, let uiImage = UIImage(data: data) {
+                resultImage = uiImage
+            } else {
+                print("[AssetManagementService] requestImageData fallback => data nil for asset \(asset.localIdentifier)")
+            }
         }
         return resultImage
     }
+    
+    // MARK: - Цепочка сравнений
 
-    // MARK: - Image Comparison
-
-    private func areImagesVisuallySimilar(image1: UIImage, image2: UIImage) -> Bool {
-        guard let ciImage1 = CIImage(image: image1),
-              let ciImage2 = CIImage(image: image2) else {
-            return false
+    private func areImagesLikelyDuplicates(_ image1: UIImage, _ image2: UIImage) -> Bool {
+        print("      [Compare] Start comparing 2 images..")
+        
+        // 1) Битовое сравнение
+        if areImagesEqual(image1, image2) {
+            print("      => Bitwise equal.")
+            return true
         }
-
-        let differenceFilter = CIFilter(name: "CIDifferenceBlendMode")!
-        differenceFilter.setValue(ciImage1, forKey: kCIInputImageKey)
-        differenceFilter.setValue(ciImage2, forKey: kCIInputBackgroundImageKey)
-
-        let outputImage = differenceFilter.outputImage!
-        let context = CIContext()
-        let extent = outputImage.extent
-        let diffImage = context.createCGImage(outputImage, from: extent)
-
-        let avgFilter = CIFilter(name: "CIAreaAverage")!
-        avgFilter.setValue(CIImage(cgImage: diffImage!), forKey: kCIInputImageKey)
-        avgFilter.setValue(CIVector(x: extent.origin.x, y: extent.origin.y, z: extent.size.width, w: extent.size.height), forKey: "inputExtent")
-
-        let output = avgFilter.outputImage!
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        context.render(output, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
-
-        let avgBrightness = Float(bitmap[0]) / 255.0
-        return avgBrightness < 0.1
-    }
-
-    private func areImagesEqual(_ image1: UIImage, _ image2: UIImage) -> Bool {
-        guard let data1 = image1.cgImage?.dataProvider?.data,
-              let data2 = image2.cgImage?.dataProvider?.data else {
-            return false
+        
+        // 2) Хэш по pngData
+        if compareUsingHash(image1, image2) {
+            print("      => Same SHA256 hash.")
+            return true
         }
-        return CFDataGetBytePtr(data1) == CFDataGetBytePtr(data2)
-    }
-
-    func compareUsingHash(_ image1: UIImage, _ image2: UIImage) -> Bool {
+        
+        // 3) CIDifferenceBlendMode
+        if areImagesVisuallySimilar(image1: image1, image2: image2) {
+            print("      => Visually similar (DifferenceBlendMode).")
+            return true
+        }
+        
+        // 4) Vision FeaturePrint
+        if let distance = calculateImageSimilarity(image1: image1, image2: image2) {
+            let isSimilar = distance < similarityThreshold
+            print("      => Vision distance=\(distance), threshold=\(similarityThreshold), duplicates? \(isSimilar)")
+            return isSimilar
+        }
+        
+        print("      => Not duplicates by all checks.")
         return false
     }
-
+    
+    // Сравнение байт-в-байт (cgImage)
+    private func areImagesEqual(_ image1: UIImage, _ image2: UIImage) -> Bool {
+        guard let d1 = image1.cgImage?.dataProvider?.data,
+              let d2 = image2.cgImage?.dataProvider?.data else {
+            return false
+        }
+        if CFDataGetLength(d1) != CFDataGetLength(d2) {
+            return false
+        }
+        return memcmp(CFDataGetBytePtr(d1)!, CFDataGetBytePtr(d2)!, CFDataGetLength(d1)) == 0
+    }
+    
+    // SHA256-хэш по pngData
+    private func compareUsingHash(_ image1: UIImage, _ image2: UIImage) -> Bool {
+        guard let data1 = image1.pngData(), let data2 = image2.pngData() else {
+            return false
+        }
+        return SHA256.hash(data: data1) == SHA256.hash(data: data2)
+    }
+    
+    // CIDifferenceBlendMode + CIAreaAverage
+    private func areImagesVisuallySimilar(image1: UIImage, image2: UIImage) -> Bool {
+        guard let ci1 = CIImage(image: image1), let ci2 = CIImage(image: image2) else {
+            return false
+        }
+        
+        guard let diffFilter = CIFilter(name: "CIDifferenceBlendMode"),
+              let avgFilter = CIFilter(name: "CIAreaAverage") else {
+            return false
+        }
+        
+        diffFilter.setValue(ci1, forKey: kCIInputImageKey)
+        diffFilter.setValue(ci2, forKey: kCIInputBackgroundImageKey)
+        
+        guard let outputDiff = diffFilter.outputImage else {
+            return false
+        }
+        
+        let context = CIContext()
+        let extent = outputDiff.extent
+        
+        guard let diffCG = context.createCGImage(outputDiff, from: extent) else {
+            return false
+        }
+        
+        avgFilter.setValue(CIImage(cgImage: diffCG), forKey: kCIInputImageKey)
+        avgFilter.setValue(CIVector(cgRect: extent), forKey: "inputExtent")
+        
+        guard let avgOut = avgFilter.outputImage else {
+            return false
+        }
+        
+        var bitmap = [UInt8](repeating: 0, count: 4)
+        context.render(avgOut, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+        
+        let avgBrightness = Float(bitmap[0]) / 255.0
+        // Чем меньше — тем больше сходство
+        return avgBrightness < 0.1
+    }
+    
+    // Vision FeaturePrint
     private func calculateImageSimilarity(image1: UIImage, image2: UIImage) -> Float? {
-        guard let cgImage1 = image1.cgImage, let cgImage2 = image2.cgImage else {
+        guard let cg1 = image1.cgImage, let cg2 = image2.cgImage else {
             return nil
         }
-
-        var similarity: Float = 0.0
-        let semaphore = DispatchSemaphore(value: 0)
-
-        let requestHandler1 = VNImageRequestHandler(cgImage: cgImage1, options: [:])
-        let requestHandler2 = VNImageRequestHandler(cgImage: cgImage2, options: [:])
-
-        var featurePrintObservation1: VNFeaturePrintObservation?
-        var featurePrintObservation2: VNFeaturePrintObservation?
-
-        let request1 = VNGenerateImageFeaturePrintRequest { request, _ in
-            featurePrintObservation1 = request.results?.first as? VNFeaturePrintObservation
-            semaphore.signal()
+        
+        var distance: Float = 0
+        let sema = DispatchSemaphore(value: 0)
+        
+        let reqHandler1 = VNImageRequestHandler(cgImage: cg1, options: [:])
+        let reqHandler2 = VNImageRequestHandler(cgImage: cg2, options: [:])
+        
+        var fpObs1: VNFeaturePrintObservation?
+        var fpObs2: VNFeaturePrintObservation?
+        
+        let req1 = VNGenerateImageFeaturePrintRequest { request, _ in
+            fpObs1 = request.results?.first as? VNFeaturePrintObservation
+            sema.signal()
         }
-
-        let request2 = VNGenerateImageFeaturePrintRequest { request, _ in
-            featurePrintObservation2 = request.results?.first as? VNFeaturePrintObservation
-            semaphore.signal()
+        let req2 = VNGenerateImageFeaturePrintRequest { request, _ in
+            fpObs2 = request.results?.first as? VNFeaturePrintObservation
+            sema.signal()
         }
-
+        
+        // Выполняем последовательно
         DispatchQueue.global(qos: .userInitiated).async {
-            try? requestHandler1.perform([request1])
+            try? reqHandler1.perform([req1])
         }
-        semaphore.wait()
-
+        sema.wait()
+        
         DispatchQueue.global(qos: .userInitiated).async {
-            try? requestHandler2.perform([request2])
+            try? reqHandler2.perform([req2])
         }
-        semaphore.wait()
-
-        if let observation1 = featurePrintObservation1, let observation2 = featurePrintObservation2 {
+        sema.wait()
+        
+        if let obs1 = fpObs1, let obs2 = fpObs2 {
             do {
-                try observation1.computeDistance(&similarity, to: observation2)
-                return similarity
+                try obs1.computeDistance(&distance, to: obs2)
+                return distance
             } catch {
-                print("Error computing similarity: \(error)")
+                print("[AssetManagementService] Error computing Vision distance: \(error)")
                 return nil
             }
         }
         return nil
     }
+    
+    // MARK: - averageHash (8x8) для первичного группирования
+    private func averageHash(for image: UIImage) -> String {
+        // Делаем resize до 8x8
+        guard let resized = resizeImage(image, to: CGSize(width: 8, height: 8)),
+              let cg = resized.cgImage else {
+            print("[AssetManagementService] averageHash -> cgImage or resized is nil, returning empty.")
+            return ""
+        }
+        
+        let w = cg.width
+        let h = cg.height
+        
+        guard let context = CGContext(
+            data: nil,
+            width: w,
+            height: h,
+            bitsPerComponent: 8,
+            bytesPerRow: w,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else {
+            print("[AssetManagementService] averageHash -> failed to create CGContext.")
+            return ""
+        }
+        
+        context.draw(cg, in: CGRect(origin: .zero, size: CGSize(width: w, height: h)))
+        guard let pixelsData = context.data else {
+            print("[AssetManagementService] averageHash -> context.data is nil.")
+            return ""
+        }
+        
+        let pixels = pixelsData.bindMemory(to: UInt8.self, capacity: w * h)
+        var total = 0
+        for i in 0..<(w*h) {
+            total += Int(pixels[i])
+        }
+        let avg = total / (w*h)
+        
+        var hash = ""
+        for i in 0..<(w*h) {
+            hash += (pixels[i] < avg) ? "0" : "1"
+        }
+        return hash
+    }
+    
+    /// Ресайз изображения (safe)
+    private func resizeImage(_ image: UIImage, to size: CGSize) -> UIImage? {
+        if size.width <= 0 || size.height <= 0 || image.size.width <= 0 || image.size.height <= 0 {
+            print("[AssetManagementService] resizeImage -> invalid sizes. Return nil.")
+            return nil
+        }
+        
+        UIGraphicsBeginImageContextWithOptions(size, true, 1.0)
+        image.draw(in: CGRect(origin: .zero, size: size))
+        let newImg = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return newImg
+    }
 }
 
-
-// MARK: - Screenshots
-
+// MARK: - Пример работы со скриншотами
 extension AssetManagementService {
-    func fetchScreenshotsGroupedByMonth(
-        completion: @escaping ([ScreenshotsAsset]) -> Void
-    ) {
-        PHPhotoLibrary.requestAuthorization { [self] status in
+    
+    func fetchScreenshotsGroupedByMonth(completion: @escaping ([ScreenshotsAsset]) -> Void) {
+        print("[AssetManagementService] fetchScreenshotsGroupedByMonth -> requesting authorization..")
+        PHPhotoLibrary.requestAuthorization { [weak self] status in
+            guard let self = self else { return }
             guard status == .authorized else {
-                print("Access to Photo Library not authorized.")
+                print("[AssetManagementService] No access to Photo Library for screenshots. Status = \(status.rawValue)")
                 completion([])
                 return
             }
-
+            
+            print("[AssetManagementService] fetchScreenshotsGroupedByMonth -> loading screenshots from library.")
             let fetchOptions = PHFetchOptions()
             fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-
+            
             let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
             var screenshotGroups: [String: [PHAsset]] = [:]
-
+            
             fetchResult.enumerateObjects { asset, _, _ in
                 if asset.mediaSubtypes.contains(.photoScreenshot),
                    let creationDate = asset.creationDate {
                     let monthYearKey = self.formatDateToMonthYear(creationDate)
-
-                    if screenshotGroups[monthYearKey] != nil {
-                        screenshotGroups[monthYearKey]?.append(asset)
-                    } else {
-                        screenshotGroups[monthYearKey] = [asset]
-                    }
+                    screenshotGroups[monthYearKey, default: []].append(asset)
                 }
             }
-
-            // Сортировка групп по убыванию (последние месяцы первыми)
+            
+            let totalScreens = screenshotGroups.values.reduce(0) { $0 + $1.count }
+            print("[AssetManagementService] totalScreenshots = \(totalScreens)")
+            
+            // Сортируем по дате (новые сверху)
             let sortedGroups = screenshotGroups.sorted { lhs, rhs in
-                guard let lhsDate = parseMonthYear(lhs.key),
-                      let rhsDate = parseMonthYear(rhs.key) else {
+                guard let lhsDate = self.parseMonthYear(lhs.key),
+                      let rhsDate = self.parseMonthYear(rhs.key) else {
                     return false
                 }
                 return lhsDate > rhsDate
             }
-
-            // Преобразование в массив ScreenshotsAsset
+            
+            // Формируем ScreenshotsAsset
             let screenshotsAssets = sortedGroups.map { key, assets in
-                ScreenshotsAsset(
-                    description: key,
-                    groupAsset: assets.map { PhotoAsset(isSelected: false, asset: $0) }
-                )
+                let group = assets.map { PhotoAsset(isSelected: false, asset: $0) }
+                print("  [AssetManagementService] \(key): \(group.count) screenshots.")
+                return ScreenshotsAsset(description: key, groupAsset: group)
             }
-
             completion(screenshotsAssets)
         }
     }
-
+    
     private func formatDateToMonthYear(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy" // Например: "January 2025"
+        formatter.dateFormat = "MMMM yyyy"
         return formatter.string(from: date)
     }
-
+    
     private func parseMonthYear(_ string: String) -> Date? {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"

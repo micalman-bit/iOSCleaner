@@ -16,7 +16,7 @@ struct ContactDuplicateItem: Identifiable {
     let item: CNContact
 }
 
-struct DuplicateGroup: Identifiable {
+struct ContactDuplicateGroup: Identifiable {
     let id = UUID()
     var contacts: [ContactDuplicateItem]
 }
@@ -25,7 +25,7 @@ class ContactManager {
     static let shared = ContactManager() // Singleton
 
     private let contactStore = CNContactStore()
-    private var duplicateGroups: [DuplicateGroup] = []
+    private var duplicateGroups: [ContactDuplicateGroup] = []
     private var isSearchingDuplicates = false
     
     private init() {}
@@ -76,7 +76,7 @@ class ContactManager {
         }
     }
     
-    private func findDuplicateGroups(in contacts: [CNContact]) -> [DuplicateGroup] {
+    private func findDuplicateGroups(in contacts: [CNContact]) -> [ContactDuplicateGroup] {
         var phoneNumberToContacts: [String: [CNContact]] = [:]
 
         for contact in contacts {
@@ -104,10 +104,10 @@ class ContactManager {
                 }
             }
         
-        return filteredGroups.map { DuplicateGroup(contacts: $0) }
+        return filteredGroups.map { ContactDuplicateGroup(contacts: $0) }
     }
     
-    func getDuplicateContactGroups(completion: @escaping ([DuplicateGroup]?, Bool) -> Void) {
+    func getDuplicateContactGroups(completion: @escaping ([ContactDuplicateGroup]?, Bool) -> Void) {
         if isSearchingDuplicates {
             completion(nil, true)
             DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in

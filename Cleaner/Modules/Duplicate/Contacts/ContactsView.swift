@@ -291,13 +291,13 @@ struct ContactsView: View {
     }
 }
 
-struct ContactsViewView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContactsView(
-            viewModel: ContactsViewModel(
-                service: ContactsService(),
-                router: ContactsRouter()
-            )
-        )
-    }
-}
+//struct ContactsViewView_Previews: PreviewProvider {
+//    static var previews: some View {
+//        ContactsView(
+//            viewModel: ContactsViewModel(
+//                service: ContactsService(),
+//                router: ContactsRouter()
+//            )
+//        )
+//    }
+//}

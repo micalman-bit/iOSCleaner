@@ -225,7 +225,7 @@ struct HomeView: View {
                 
                 Divider()
                     .padding(top: 32)
-            }.asButton(style: .opacity, action: viewModel.didTapContact)
+            }.asButton(style: .opacity, action: viewModel.clearOldCalendarEvents)
 
             /// Calendar
             VStack(spacing: .zero) {

@@ -22,14 +22,15 @@ final class PhotosAndVideosViewModel: ObservableObject {
 
     @Published var listOfItems: [PhotosAndVideosItemModel]
     @Published var isAnalyzing: Bool = true
-
+    @Published var timerText: String = "0%"
+    
     // MARK: - Private Properties
 
     private let service: PhotosAndVideosService
     private let router: PhotosAndVideosRouter
     
-    private let assetManagementService: AssetManagementService
     private let videoManagementService: VideoManagementService
+    private var assetService = AssetManagementService.shared
     
     private var groupedPhotos: [[PhotoAsset]] = []
     private var groupedScreenshots: [ScreenshotsAsset] = []
@@ -41,13 +42,11 @@ final class PhotosAndVideosViewModel: ObservableObject {
 
     init(
         service: PhotosAndVideosService,
-        router: PhotosAndVideosRouter,
-        assetManagementService: AssetManagementService = AssetManagementService()
+        router: PhotosAndVideosRouter
     ) {
         self.service = service
         self.router = router
         
-        self.assetManagementService = assetManagementService
         self.videoManagementService = VideoManagementService()
         self.listOfItems = []
         
@@ -62,81 +61,109 @@ final class PhotosAndVideosViewModel: ObservableObject {
 
     // MARK: - Private Methods
 
-    // Search photo duplicates
     private func loadAndAnalyzePhotos() {
         isAnalyzing = true
         groupedPhotos = []
-        
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.assetManagementService.fetchAndAnalyzePhotos(
-                onNewGroupFound: { [weak self] newGroup in
-                    DispatchQueue.main.async {
-                        let photoAssets: [PhotoAsset] = newGroup.enumerated().map { index, asset in
-                            PhotoAsset(isSelected: index != 0, asset: asset)
-                        }
-                        self?.groupedPhotos.append(photoAssets)
-                    }
-                },
-                completion: { [weak self] in
-                    DispatchQueue.main.async {
-                        guard let self else { return }
-                        
-                        let photoAssets = self.groupedPhotos.flatMap { $0 }
-                        PhotoVideoManager.shared.calculateStorageUsageForAssets(photoAssets) { photoSize in
-                            self.listOfItems.append(
-                                PhotosAndVideosItemModel(
-                                    leftTitle: "Photos",
-                                    leftSubtitle: "\(photoAssets.count)",
-                                    rightTitle: String(format: "%.2f GB", photoSize),
-                                    action: { [weak self] in
-                                        guard let self else { return }
-                                        self.openSimilarAsset(
-                                            photoOrVideo: groupedPhotos,
-                                            type: .photos
-                                        )
-                                    }
-                                )
-                            )
 
-                            self.analyzeScreenshots()
-                        }
-                    }
-                }
-            )
-        }
-    }
-    
-    // Search screenshots
-    private func analyzeScreenshots() {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.assetManagementService.fetchScreenshotsGroupedByMonth { [weak self] groupedScreenshots in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    self.groupedScreenshots = groupedScreenshots
-                    
-                    let screenshotAssets = self.groupedScreenshots.flatMap { $0.groupAsset }
-                    
-                    PhotoVideoManager.shared.calculateStorageUsageForAssets(screenshotAssets) { screenshotSize in
-                        self.listOfItems.append(
-                            PhotosAndVideosItemModel(
-                                leftTitle: "Screenshots",
-                                leftSubtitle: "\(screenshotAssets.count)",
-                                rightTitle: String(format: "%.2f GB", screenshotSize),
-                                action: { [weak self] in
-                                    guard let self else { return }
-                                    self.openSimilarAsset(
-                                        screenshotsOrRecording: groupedScreenshots,
-                                        type: .screenshots
-                                    )
-                                }
-                            )
-                        )
-                        
-                        self.fetchAndAnalyzeVideos()
+            guard let self = self else { return }
+
+            while true {
+                let status = self.assetService.getScanStatus()
+                let scanning = status.isScanning
+                let progress = status.progress
+                let groupsCount = status.groups.count
+
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    print("Updating progress: \(progress)")
+                    self.timerText = "\(Int(progress))%"
+                }
+                
+                print("scanning: \(scanning), progress: \(progress), duplicates found: \(groupsCount)")
+
+                if groupsCount > 1 {
+                    DispatchQueue.main.async {
+                        self.isAnalyzing = false
                     }
+                    break
+                }
+
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+
+            // 3. Когда цикл завершён (сканирование закончилось)
+            let finalStatus = self.assetService.getScanStatus()
+            let finalGroups = finalStatus.groups
+            
+            print("Final scanning: \(finalStatus.isScanning), progress: \(finalStatus.progress), duplicates found: \(finalGroups.count)")
+            
+            let arrayOfPhotoAssets = finalGroups.map { $0.assets }
+            
+            // 4. Переходим на главный поток, чтобы обновить UI
+            DispatchQueue.main.async {
+                // Если хотите ещё и тут отключить, если вдруг ещё не отключили
+                self.isAnalyzing = false
+                
+                self.groupedPhotos = arrayOfPhotoAssets
+                let allPhotoAssets = arrayOfPhotoAssets.flatMap { $0 }
+
+                PhotoVideoManager.shared.calculateStorageUsageForAssets(allPhotoAssets) { [weak self] photoSize in
+                    guard let self = self else { return }
+                    
+                    self.listOfItems.append(
+                        PhotosAndVideosItemModel(
+                            leftTitle: "Photos",
+                            leftSubtitle: "\(allPhotoAssets.count)",
+                            rightTitle: String(format: "%.2f GB", photoSize),
+                            action: { [weak self] in
+                                guard let self = self else { return }
+                                self.openSimilarAsset(
+                                    photoOrVideo: self.groupedPhotos,
+                                    type: .photos
+                                )
+                            }
+                        )
+                    )
+
+                    self.analyzeScreenshots()
                 }
             }
         }
+    }
+
+    // Search screenshots
+    private func analyzeScreenshots() {
+        self.fetchAndAnalyzeVideos()
+//        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+//            self?.assetManagementService.fetchScreenshotsGroupedByMonth { [weak self] groupedScreenshots in
+//                DispatchQueue.main.async {
+//                    guard let self else { return }
+//                    self.groupedScreenshots = groupedScreenshots
+//                    
+//                    let screenshotAssets = self.groupedScreenshots.flatMap { $0.groupAsset }
+//                    
+//                    PhotoVideoManager.shared.calculateStorageUsageForAssets(screenshotAssets) { screenshotSize in
+//                        self.listOfItems.append(
+//                            PhotosAndVideosItemModel(
+//                                leftTitle: "Screenshots",
+//                                leftSubtitle: "\(screenshotAssets.count)",
+//                                rightTitle: String(format: "%.2f GB", screenshotSize),
+//                                action: { [weak self] in
+//                                    guard let self else { return }
+//                                    self.openSimilarAsset(
+//                                        screenshotsOrRecording: groupedScreenshots,
+//                                        type: .screenshots
+//                                    )
+//                                }
+//                            )
+//                        )
+//                        
+//                        self.fetchAndAnalyzeVideos()
+//                    }
+//                }
+//            }
+//        }
     }
 
     // Search Video

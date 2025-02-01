@@ -63,6 +63,8 @@ final class SimilarAssetViewModel: ObservableObject {
     @Published var analysisProgress: Int = 0 // Прогресс в процентах
     @Published var isAnalyzing: Bool
 
+    private var assetService = AssetManagementService.shared
+
     // MARK: - Public Properties
 
     var type: SimilarAssetType
@@ -71,7 +73,8 @@ final class SimilarAssetViewModel: ObservableObject {
 
     private let service: SimilarAssetService
     private let router: SimilarAssetRouter
-    private let assetManagementService: AssetManagementService
+    
+//    private let assetManagementService: AssetManagementService
 
     // MARK: - Init
 
@@ -86,7 +89,7 @@ final class SimilarAssetViewModel: ObservableObject {
         self.service = service
         self.router = router
         self.type = type
-        self.assetManagementService = assetManagementService
+//        self.assetManagementService = assetManagementService
         
         // TODO: - Вынести по отдельным методам
         switch type {
@@ -216,29 +219,12 @@ final class SimilarAssetViewModel: ObservableObject {
         isAnalyzing = true
         groupedPhotos = []
         
-        assetManagementService.progressUpdate = { [weak self] progress in
-            DispatchQueue.main.async {
-                self?.analysisProgress = Int(progress * 100)
-            }
-        }
-
-        assetManagementService.fetchAndAnalyzePhotos(
-            onNewGroupFound: { [weak self] newGroup in
-                DispatchQueue.main.async {
-                    let photoAssets: [PhotoAsset] = newGroup.enumerated().map { index, asset in
-                        PhotoAsset(isSelected: index != 0, asset: asset)
-                    }
-
-                    self?.groupedPhotos.append(photoAssets)
-                    self?.isAnalyzing = false
-                }
-            },
-            completion: { [weak self] in
-                DispatchQueue.main.async {
-                    self?.isAnalyzing = false
-                }
-            }
-        )
+        let status = assetService.getScanStatus()
+        let scanning = status.isScanning         // Bool
+        let progress = status.progress           // Double (0..1)
+        let groups = status.groups               // [DuplicateAssetGroup]
+        print("scanning: \(scanning), progress: \(progress), duplicates found: \(groups.count)")
+        
     }
 
 }

@@ -48,6 +48,7 @@ final class HomeViewModel: ObservableObject {
     private let photoVideoManager = PhotoVideoManager.shared
     private let contactManager = ContactManager.shared
     private let calendarManager = CalendarManager.shared
+    private var assetService = AssetManagementService.shared
 
     private let contactStore = CNContactStore()
     private let eventStore = EKEventStore()
@@ -66,16 +67,17 @@ final class HomeViewModel: ObservableObject {
 //        self.isCalendarLoaderActive = true
         
         calculateStorage()
-        requestPhotoLibraryAccess()
+        assetService.requestGalleryAccessAndStartScan()
     }
     
     // MARK: - Public Methods
     
     func didTapPhotoAndVideo() {
-        guard isPhonoAndVideoAvailable else {
-            showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
-            return
-        }
+//        requestPhotoLibraryAccess()
+//        guard isPhonoAndVideoAvailable else {
+//            showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
+//            return
+//        }
         router.openSimilarPhotos()
     }
     

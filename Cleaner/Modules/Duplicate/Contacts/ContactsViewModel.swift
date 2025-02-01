@@ -23,7 +23,7 @@ final class ContactsViewModel: ObservableObject {
     
     @Published var isEnabledButton: Bool = false
     
-    @Published var duplicates: [DuplicateGroup] = []
+    @Published var duplicates: [ContactDuplicateGroup] = []
     @Published var screenState: ScreenState = .loading
     
     // MARK: - Private Properties
