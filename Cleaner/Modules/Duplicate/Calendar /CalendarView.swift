@@ -182,6 +182,7 @@ struct CalendarView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Calendar")
                 .font(.system(size: 32, weight: .semibold))
+                .foregroundColor(.Typography.textDark)
             
             Text(viewModel.duplicateCount)
                 .textStyle(.price, textColor: .Typography.textGray)
@@ -223,8 +224,9 @@ struct CalendarView: View {
                     .padding(top: 110)
                 
                 VStack(spacing: .zero) {
-                    Text("22%")
+                    Text("0%")
                         .font(.system(size: 62, weight: .semibold))
+                        .foregroundColor(.Typography.textDark)
                     
                     Text("Analysis in\nprogress")
                         .textStyle(.flatCount)

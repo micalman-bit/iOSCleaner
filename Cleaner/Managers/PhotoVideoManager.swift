@@ -6,7 +6,7 @@
 //
 
 import Photos
-import Foundation
+import CryptoKit
 
 final class PhotoVideoManager {
     
@@ -14,13 +14,13 @@ final class PhotoVideoManager {
     static let shared = PhotoVideoManager()
     
     private init() {}
-
+    
     /// Проверить статус доступа к медиатеке
     func checkAuthorizationStatus() -> Bool {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         return status == .authorized || status == .limited
     }
-
+    
     /// Запросить доступ к медиатеке
     func requestAuthorization(completion: @escaping (Bool) -> Void) {
         PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
@@ -29,58 +29,85 @@ final class PhotoVideoManager {
             }
         }
     }
-
-    /// Рассчитать объём памяти, занятый фото и видео
-    func calculatePhotoAndVideoStorageUsage(completion: @escaping (Double, Double) -> Void) {
+    
+    /// Рассчитать объём памяти, занятый фото и видео, и вернуть результат в отформатированном виде.
+    /// Первый параметр – размер фотографий, второй – размер видео.
+    func calculatePhotoAndVideoStorageUsage(completion: @escaping (String, String) -> Void) {
         guard checkAuthorizationStatus() else {
-            completion(0.0, 0.0)
+            completion("0 B", "0 B")
             return
         }
-
-        var photoStorage: Double = 0.0
-        var videoStorage: Double = 0.0
-
-        let assets = PHAsset.fetchAssets(with: .image, options: nil)
-        let videos = PHAsset.fetchAssets(with: .video, options: nil)
-
+        
+        var photoStorage: Int64 = 0
+        var videoStorage: Int64 = 0
+        
+        let photoAssets = PHAsset.fetchAssets(with: .image, options: nil)
+        let videoAssets = PHAsset.fetchAssets(with: .video, options: nil)
+        
         // Считаем объём памяти для фотографий
-        assets.enumerateObjects { asset, _, _ in
+        photoAssets.enumerateObjects { asset, _, _ in
             if let resource = PHAssetResource.assetResources(for: asset).first,
                let fileSize = resource.value(forKey: "fileSize") as? Int64 {
-                photoStorage += Double(fileSize)
+                photoStorage += fileSize
             }
         }
-
+        
         // Считаем объём памяти для видео
-        videos.enumerateObjects { video, _, _ in
-            if let resource = PHAssetResource.assetResources(for: video).first,
+        videoAssets.enumerateObjects { asset, _, _ in
+            if let resource = PHAssetResource.assetResources(for: asset).first,
                let fileSize = resource.value(forKey: "fileSize") as? Int64 {
-                videoStorage += Double(fileSize)
+                videoStorage += fileSize
             }
         }
-
+        
         DispatchQueue.main.async {
-            completion(photoStorage / 1_073_741_824, videoStorage / 1_073_741_824) // Конвертируем в GB
+            let formattedPhotos = self.formatByteCount(photoStorage)
+            let formattedVideos = self.formatByteCount(videoStorage)
+            completion(formattedPhotos, formattedVideos)
         }
     }
     
-    func calculateStorageUsageForAssets(_ photoAssets: [PhotoAsset], completion: @escaping (Double) -> Void) {
-        var totalSize: Int64 = 0
-        let dispatchGroup = DispatchGroup()
-
+    /// Рассчитать объём памяти для массива ассетов и вернуть результат в отформатированном виде.
+    func calculateStorageUsageForAssets(_ photoAssets: [PhotoAsset], completion: @escaping (String) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
-            for photoAsset in photoAssets {
-                dispatchGroup.enter()
+            var totalSize: Int64 = 0
+            let lock = NSLock() // Для безопасного суммирования в разных потоках
+            
+            // Обходим ассеты параллельно
+            DispatchQueue.concurrentPerform(iterations: photoAssets.count) { index in
+                let photoAsset = photoAssets[index]
                 if let resource = PHAssetResource.assetResources(for: photoAsset.asset).first,
                    let fileSize = resource.value(forKey: "fileSize") as? Int64 {
+                    lock.lock()
                     totalSize += fileSize
+                    lock.unlock()
                 }
-                dispatchGroup.leave()
             }
+            
+            let formattedSize = self.formatByteCount(totalSize)
+            DispatchQueue.main.async {
+                completion(formattedSize)
+            }
+        }
+    }
 
-            dispatchGroup.notify(queue: .main) {
-                completion(Double(totalSize) / 1_073_741_824) // Конвертируем в GB
-            }
+    /// Форматирует количество байт в строку с нужной единицей измерения:
+    /// — если больше или равно 1 ГБ, то в ГБ;
+    /// — если меньше 1 ГБ, но больше или равно 1 МБ, то в МБ;
+    /// — если меньше 1 МБ, но больше или равно 1 КБ, то в КБ;
+    /// — иначе – в байтах.
+    private func formatByteCount(_ bytes: Int64) -> String {
+        if bytes >= 1_073_741_824 { // 1 GB
+            let value = Double(bytes) / 1_073_741_824.0
+            return String(format: "%.2f GB", value)
+        } else if bytes >= 1_048_576 { // 1 MB
+            let value = Double(bytes) / 1_048_576.0
+            return String(format: "%.2f MB", value)
+        } else if bytes >= 1024 { // 1 KB
+            let value = Double(bytes) / 1024.0
+            return String(format: "%.2f KB", value)
+        } else {
+            return "\(bytes) B"
         }
     }
 }

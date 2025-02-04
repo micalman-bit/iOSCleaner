@@ -34,6 +34,11 @@ class CalendarManager {
     
     private init() {}
 
+    func checkAuthorizationStatus() -> Bool {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        return status == .authorized
+    }
+
     // Запрос разрешения на доступ к календарю
     func requestCalendarAccess(completion: @escaping (Bool) -> Void) {
         eventStore.requestAccess(to: .event) { [weak self] granted, error in
@@ -42,7 +47,7 @@ class CalendarManager {
                 DispatchQueue.main.async {
                     completion(true)
                 }
-                // Запуск поиска событий в фоне
+                UserDefaultsService.isGetCalendarAccess = true
                 self.searchEventsInBackground()
             } else {
                 DispatchQueue.main.async {

@@ -39,7 +39,9 @@ struct HomeView: View {
                 
                 makeButtonListView()
             }
-        }.ignoresSafeArea(edges: .top)
+        }
+        .ignoresSafeArea(edges: .top)
+        .onAppear { viewModel.checkAccess() }
     }
 
 
@@ -144,12 +146,11 @@ struct HomeView: View {
             .background(Color.blue)
             .cornerRadius(55)
             .padding(top: 20)
+            .asButton(style: .scale(.light), action: viewModel.didTapPhotoAndVideo)
         }
         .padding(top: 28)
     }
     
-    
-
     @ViewBuilder private func makeButtonListView() -> some View {
         VStack(spacing: 20) {
             
@@ -164,11 +165,18 @@ struct HomeView: View {
                     
                     switch viewModel.isPhonoAndVideoAvailable {
                     case true:
-                        Text("Photo & Video")
-                            .textStyle(.h1, textColor: .Typography.textDark)
+                        HStack(spacing: 10) {
+                            Text("Photo & Video")
+                                .textStyle(.h1, textColor: .Typography.textDark)
+                            
+                            Text(viewModel.totalFilesCount)
+                                .font(.system(size: 17, weight: .regular))
+                                .foregroundColor(.Typography.textDark)
+
+                        }.frame(maxWidth: .infinity)
                     case false:
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Calendar")
+                            Text("Photo & Video")
                                 .textStyle(.h1, textColor: .Typography.textDark)
                             
                             Text("Need access, click to allow")
@@ -180,6 +188,7 @@ struct HomeView: View {
                     Spacer()
                     
                     makeButtonOfItemView(
+                        .photoVideo,
                         isEnabled: viewModel.isPhonoAndVideoAvailable,
                         isLoading: viewModel.isPhonoAndVideoLoaderActive,
                         title: viewModel.phonoAndVideoGBText
@@ -217,6 +226,7 @@ struct HomeView: View {
                     Spacer()
 
                     makeButtonOfItemView(
+                        .contact,
                         isEnabled: viewModel.isСontactsAvailable,
                         isLoading: viewModel.isСontactsLoaderActive,
                         title: viewModel.contactsText
@@ -225,7 +235,7 @@ struct HomeView: View {
                 
                 Divider()
                     .padding(top: 32)
-            }.asButton(style: .opacity, action: viewModel.clearOldCalendarEvents)
+            }.asButton(style: .opacity, action: viewModel.didTapContact)
 
             /// Calendar
             VStack(spacing: .zero) {
@@ -253,6 +263,7 @@ struct HomeView: View {
                     Spacer(minLength: .zero)
                     
                     makeButtonOfItemView(
+                        .calendar,
                         isEnabled: viewModel.isCalendarAvailable,
                         isLoading: viewModel.isCalendarLoaderActive,
                         title: viewModel.сalendarText
@@ -271,6 +282,7 @@ struct HomeView: View {
     // MARK: - Button List View
 
     @ViewBuilder private func makeButtonOfItemView(
+        _ type: HomeButtonType,
         isEnabled: Bool,
         isLoading: Bool,
         title: String

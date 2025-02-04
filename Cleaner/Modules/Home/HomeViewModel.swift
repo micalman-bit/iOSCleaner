@@ -10,6 +10,12 @@ import Contacts
 import EventKit
 import UIKit
 
+public enum HomeButtonType {
+    case photoVideo
+    case contact
+    case calendar
+}
+
 final class HomeViewModel: ObservableObject {
     
     // MARK: - Published Properties
@@ -23,13 +29,21 @@ final class HomeViewModel: ObservableObject {
 
     /// Photo and video
     @Published var isPhonoAndVideoLoaderActive: Bool = false
-    @Published var isPhonoAndVideoAvailable: Bool = false
+    
+    @Published var isPhonoAndVideoAvailable: Bool = false {
+        didSet {
+            if isPhonoAndVideoAvailable {
+                calculatePhotoAndVideoStorage()
+            }
+        }
+    }
+    
     @Published var phonoAndVideoGB: Double = 0.0
     @Published var phonoAndVideoGBText: String = ""
-
+    @Published var totalFilesCount: String = ""
     /// Сontacts
     @Published var isСontactsLoaderActive: Bool = false
-    @Published var isСontactsAvailable: Bool = false
+    @Published var isСontactsAvailable: Bool
     @Published var contactsCount: Int = 0
     @Published var contactsText: String = ""
     @Published var duplicateContactsCount: Int = 0
@@ -49,6 +63,7 @@ final class HomeViewModel: ObservableObject {
     private let contactManager = ContactManager.shared
     private let calendarManager = CalendarManager.shared
     private var assetService = AssetManagementService.shared
+    private let videoManagementService = VideoManagementService.shared
 
     private let contactStore = CNContactStore()
     private let eventStore = EKEventStore()
@@ -61,64 +76,60 @@ final class HomeViewModel: ObservableObject {
     ) {
         self.service = service
         self.router = router
-                
-        self.isPhonoAndVideoLoaderActive = true
-//        self.isСontactsLoaderActive = true
-//        self.isCalendarLoaderActive = true
         
-        calculateStorage()
-        assetService.requestGalleryAccessAndStartScan()
+        self.isСontactsAvailable = UserDefaultsService.isGetContactsAccess
+        self.isCalendarAvailable = UserDefaultsService.isGetCalendarAccess
+        
+        requestAccess()
+        checkAccess()
     }
-    
+        
     // MARK: - Public Methods
     
-    func didTapPhotoAndVideo() {
-//        requestPhotoLibraryAccess()
-//        guard isPhonoAndVideoAvailable else {
-//            showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
-//            return
-//        }
-        router.openSimilarPhotos()
+    func checkAccess() {
+        if contactManager.checkAuthorizationStatus() {
+            isСontactsAvailable = true
+            UserDefaultsService.isGetContactsAccess = true
+        } else {
+            isСontactsAvailable = false
+            UserDefaultsService.isGetContactsAccess = false
+        }
+        
+        if calendarManager.checkAuthorizationStatus() {
+            isCalendarAvailable = true
+            UserDefaultsService.isGetCalendarAccess = true
+        } else {
+            isCalendarAvailable = false
+            UserDefaultsService.isGetCalendarAccess = false
+        }
     }
     
-    func didTapContact() {
+    func didTapPhotoAndVideo() {
+        if photoVideoManager.checkAuthorizationStatus() {
+            router.openSimilarPhotos()
+        } else {
+            showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
+        }
+    }
 
+    func didTapContact() {
         contactManager.requestContactsAccess { [weak self] granted in
             if granted {
-                print("Access to contacts granted")
-                
                 self?.router.openContacts()
-                // Запрашиваем дубликаты
-//                self.contactManager.getDuplicateContacts { duplicates, isSearching in
-//                    if isSearching {
-//                        print("Scanning is still in progress...")
-//                    } else if let duplicates = duplicates {
-//                        print("Found duplicates: \(duplicates)")
-//                    }
-//                }
             } else {
-                print("Access to contacts denied")
+                self?.showSettingsAlert("No access to Contacts. Please enable this in your settings.")
             }
         }
-
-        
-//        guard isСontactsAvailable else {
-//            showSettingsAlert("No access to Contacts. Please enable this in your settings.")
-//            return
-//        }
-        
-        print("action didTapContact")
     }
 
     func didTapCalendar() {
-        clearOldCalendarEvents()
-        
-//        guard isCalendarAvailable else {
-//            showSettingsAlert("No access to Calendar. Please enable it in your settings to continue.")
-//            return
-//        }
-        
-        print("action didTapCalendar")
+        calendarManager.requestCalendarAccess { [weak self] granted in
+            if granted {
+                self?.router.openCalendar()
+            } else {
+                self?.showSettingsAlert("No access to Calendar. Please enable it in your settings to continue.")
+            }
+        }
     }
 
     func didTapSetting() {
@@ -150,185 +161,8 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Calculate Storage
-
-    private func calculateStorage() {
-        let fileManager = FileManager.default
-        do {
-            let attributes = try fileManager.attributesOfFileSystem(forPath: NSHomeDirectory())
-            if let totalSpace = attributes[.systemSize] as? Int64,
-               let freeSpace = attributes[.systemFreeSize] as? Int64 {
-                
-                // Конвертация в десятичные GB (как указывает производитель)
-                let totalSpaceDecimalGB = Double(totalSpace) / 1_000_000_000
-                let freeSpaceDecimalGB = Double(freeSpace) / 1_000_000_000
-                
-                // Сохранение в бинарных GB для прогресса
-                let totalSpaceBinaryGB = Double(totalSpace) / 1_073_741_824
-                let freeSpaceBinaryGB = Double(freeSpace) / 1_073_741_824
-                
-                self.totalSpaceGB = totalSpaceBinaryGB
-                self.freeSpaceGB = freeSpaceBinaryGB
-                self.progress = CGFloat(1 - freeSpaceBinaryGB / totalSpaceBinaryGB)
-                
-                // TODO: Claer it
-                print("Total Space (Decimal GB): \(totalSpaceDecimalGB)")
-                print("Total Space (Binary GB): \(totalSpaceBinaryGB)")
-            }
-        } catch {
-            print("Error retrieving storage information: \(error.localizedDescription)")
-        }
-    }
-
-    // MARK: - Photo Video
-    
-    private func requestPhotoLibraryAccess() {
-        self.isPhonoAndVideoLoaderActive = true
-        photoVideoManager.requestAuthorization { [weak self] granted in
-            guard granted else {
-                print("Access denied to photo library.")
-                self?.isPhonoAndVideoAvailable = false
-                self?.isPhonoAndVideoLoaderActive = false
-                self?.showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
-                return
-            }
-
-            self?.photoVideoManager.calculatePhotoAndVideoStorageUsage { [weak self] photoGB, videoGB in
-                self?.phonoAndVideoGB = photoGB + videoGB
-                self?.phonoAndVideoGBText = String(format: "%.1f", self?.phonoAndVideoGB ?? 0) + " GB"
-                self?.isPhonoAndVideoAvailable = true
-                self?.isPhonoAndVideoLoaderActive = false
-                print("Photos: \(photoGB) GB, Videos: \(videoGB) GB")
-            }
-        }
-    }
-
-    // MARK: - Contacts
-    
-    private func requestContactsAccess() {
-        self.isСontactsLoaderActive = true
-        contactStore.requestAccess(for: .contacts) { [weak self] granted, error in
-            guard granted, error == nil else {
-                print("Access denied to contacts.")
-                self?.isСontactsLoaderActive = false
-                self?.isСontactsAvailable = false
-                self?.showSettingsAlert("No access to Contacts. Please enable this in your settings.")
-                return
-            }
-            
-            self?.checkDuplicateContacts()
-        }
-    }
-
-    func checkDuplicateContacts() {
-        let keys = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey] as [CNKeyDescriptor]
-        let request = CNContactFetchRequest(keysToFetch: keys)
-        var contactsSet = Set<String>()
-        var duplicateCount = 0
-        
-        do {
-            try contactStore.enumerateContacts(with: request) { contact, _ in
-                let key = "\(contact.givenName) \(contact.familyName) \(contact.phoneNumbers.first?.value.stringValue ?? "")"
-                
-                if contactsSet.contains(key) {
-                    duplicateCount += 1
-                } else {
-                    contactsSet.insert(key)
-                }
-            }
-            DispatchQueue.main.async {
-                self.duplicateContactsCount = duplicateCount
-                self.contactsCount = contactsSet.count
-                self.contactsText = "\(duplicateCount)"
-                self.isСontactsAvailable = true
-                self.isСontactsLoaderActive = false
-                
-                self.clearOldCalendarEvents()
-            }
-        } catch {
-            DispatchQueue.main.async {
-                self.isСontactsAvailable = false
-                self.isСontactsLoaderActive = false
-                
-                self.clearOldCalendarEvents()
-            }
-            print("Error fetching contacts: \(error.localizedDescription)")
-        }
-    }
-
-    
-    // MARK: - Calendar
-
-    func clearOldCalendarEvents() {
-        self.isCalendarLoaderActive = true
-
-        calendarManager.requestCalendarAccess { [weak self] granted in
-            if granted {
-                print("Access to contacts granted")
-                
-                self?.router.openCalendar()
-                // Запрашиваем дубликаты
-//                self.contactManager.getDuplicateContacts { duplicates, isSearching in
-//                    if isSearching {
-//                        print("Scanning is still in progress...")
-//                    } else if let duplicates = duplicates {
-//                        print("Found duplicates: \(duplicates)")
-//                    }
-//                }
-            } else {
-                print("Access to contacts denied")
-            }
-        }
-
-//        eventStore.requestAccess(to: .event) { [weak self] granted, error in
-//            guard granted, error == nil else {
-//                DispatchQueue.main.async {
-//                    self?.isCalendarLoaderActive = false
-//                    self?.isCalendarAvailable = false
-//                    self?.showSettingsAlert("No access to Calendar. Please enable it in your settings to continue.")
-//                }
-//                return
-//            }
-            
-//            CalendarManager
-            // Fetch and delete old events
-//            self?.deleteOldEvents()
-//        }
-    }
-
-    private func deleteOldEvents() {
-        // Define the time range (up to yesterday)
-        let calendars = eventStore.calendars(for: .event)
-        
-        let startDate = Date.distantPast // Start from the earliest date
-        let endDate = Calendar.current.startOfDay(for: Date()) // Start of today (exclusive)
-        
-        let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
-        let events = eventStore.events(matching: predicate)
-        
-        // Delete events
-        do {
-            for event in events {
-                try eventStore.remove(event, span: .thisEvent, commit: false)
-            }
-            // Commit changes
-            try eventStore.commit()
-            DispatchQueue.main.async { [weak self] in
-                self?.isCalendarAvailable = true
-                self?.isCalendarLoaderActive = false
-//                completion(true, nil)
-            }
-        } catch {
-            DispatchQueue.main.async { [weak self] in
-                self?.isCalendarAvailable = false
-                self?.isCalendarLoaderActive = false
-//                completion(false, error)
-            }
-        }
-    }
-    
     // MARK: - Private Methods
-
+    
     func showSettingsAlert(_ message: String) {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first?.rootViewController else {
@@ -352,4 +186,92 @@ final class HomeViewModel: ObservableObject {
             rootViewController.present(alert, animated: true, completion: nil)
         }
     }
+    
+    private func requestAccess() {
+        if photoVideoManager.checkAuthorizationStatus() {
+            isPhonoAndVideoAvailable = true
+            assetService.requestGalleryAccessAndStartScan()
+            videoManagementService.startDuplicateScan()
+        } else {
+            photoVideoManager.requestAuthorization { [weak self] granted in
+                guard let self else { return }
+                if granted {
+                    isPhonoAndVideoAvailable = true
+                    assetService.requestGalleryAccessAndStartScan()
+                    videoManagementService.startDuplicateScan()
+                } else {
+                    self.isPhonoAndVideoAvailable = false
+                    self.showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
+                }
+            }
+        }
+    }
+    
+    private func calculatePhotoAndVideoStorage() {
+        let fileManager = FileManager.default
+        let homeDirectory = NSHomeDirectory()
+        
+        var totalFilesCount = 0
+        var totalFoldersCount = 0
+
+        do {
+            let attributes = try fileManager.attributesOfFileSystem(forPath: homeDirectory)
+            if let totalSpace = attributes[.systemSize] as? Int64,
+               let freeSpace = attributes[.systemFreeSize] as? Int64 {
+
+                let totalSpaceFormatted = formatSize(totalSpace)
+                let freeSpaceFormatted = formatSize(freeSpace)
+
+                // Сохранение в бинарных GB для прогресса
+                let totalSpaceBinaryGB = Double(totalSpace) / 1_073_741_824
+                let freeSpaceBinaryGB = Double(freeSpace) / 1_073_741_824
+
+                self.totalSpaceGB = totalSpaceBinaryGB
+                self.freeSpaceGB = freeSpaceBinaryGB
+                self.progress = CGFloat(1 - freeSpaceBinaryGB / totalSpaceBinaryGB)
+
+                // Подсчет количества файлов и папок
+                if let enumerator = fileManager.enumerator(atPath: homeDirectory) {
+                    for case let item as String in enumerator {
+                        let fullPath = (homeDirectory as NSString).appendingPathComponent(item)
+                        var isDirectory: ObjCBool = false
+                        
+                        if fileManager.fileExists(atPath: fullPath, isDirectory: &isDirectory) {
+                            if isDirectory.boolValue {
+                                totalFoldersCount += 1
+                            } else {
+                                totalFilesCount += 1
+                            }
+                        }
+                    }
+                }
+
+                self.phonoAndVideoGBText = totalSpaceFormatted
+                self.totalFilesCount = String(format: "%.2f", totalFilesCount)
+                
+                // TODO: Удалить отладочный вывод
+                print("Total Space: \(totalSpaceFormatted)")
+                print("Free Space: \(freeSpaceFormatted)")
+                print("Total Files: \(totalFilesCount)")
+                print("Total Folders: \(totalFoldersCount)")
+            }
+        } catch {
+            print("Error retrieving storage information: \(error.localizedDescription)")
+        }
+    }
+    
+    func formatSize(_ size: Int64) -> String {
+        let kb = Double(size) / 1_024
+        let mb = kb / 1_024
+        let gb = mb / 1_024
+
+        if gb >= 1 {
+            return String(format: "%.2f GB", gb)
+        } else if mb >= 1 {
+            return String(format: "%.2f MB", mb)
+        } else {
+            return String(format: "%.2f KB", kb)
+        }
+    }
 }
+

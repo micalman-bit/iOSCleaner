@@ -128,21 +128,20 @@ final class CalendarViewModel: ObservableObject {
         let totalItems = events.reduce(0) { $0 + $1.events.count }
         duplicateCount = "\(totalItems) events"
         
-        let selectedCount = events.filter { group in
-            group.events.contains(where: { $0.isSelected })
-        }.count
-        
+        let selectedCount = events.reduce(0) { result, group in
+            result + group.events.filter { $0.isSelected }.count
+        }
         
         if selectedCount > 0 {
             titleDeleteAlert = "DELETE \(selectedCount) EVENTS?"
-            groupCount = "DELETR \(selectedCount) EVENTS"
+            groupCount = "DELETE \(selectedCount) EVENTS"
             isEnabledButton = true
         } else {
-            groupCount = "DELETR EVENTS"
+            groupCount = "DELETE EVENTS"
             isEnabledButton = false
         }
     }
-    
+
     private func getDuplicateContactGroups() {
         сalendarManager.getEventsGroups { eventsGroup, isSearching in
             if !isSearching {

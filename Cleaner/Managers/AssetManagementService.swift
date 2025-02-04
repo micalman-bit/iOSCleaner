@@ -55,6 +55,12 @@ final class AssetManagementService {
     private var hashGroups: [String: [PHAsset]] = [:]
     /// Чтобы не добавлять одинаковые группы
     private var groupedPhotoIdentifiers: Set<Set<String>> = []
+        
+    // MARK: - Кэш скриншотов
+    /// Сохранённые результаты сканирования скриншотов
+    private var screenshotsAssets: [ScreenshotsAsset]? = nil
+    /// Очередь для синхронизированного доступа к screenshotsAssets
+    private let screenshotsQueue = DispatchQueue(label: "com.yourapp.AssetManagementService.screenshotsQueue", attributes: .concurrent)
     
     // MARK: - Публичные методы
     
@@ -69,7 +75,10 @@ final class AssetManagementService {
             }
             print("[AssetManagementService] Authorization granted. Start scanning in background.")
             DispatchQueue.global(qos: .background).async {
+                // Запускаем поиск дубликатов
                 self.startScanningForDuplicates()
+                // Одновременно запускаем сканирование скриншотов (если ранее ещё не запускали)
+                self.startScanningScreenshots()
             }
         }
     }
@@ -244,7 +253,11 @@ final class AssetManagementService {
                     duplicates.insert(asset1, at: 0)
                     visited.insert(asset1.localIdentifier)
                     
-                    let photoAssets = duplicates.map { PhotoAsset(isSelected: false, asset: $0) }
+                    let photoAssets = duplicates.enumerated().map { index, asset in
+                        // Первый элемент – не выбран, остальные – выбраны
+                        return PhotoAsset(isSelected: index == 0 ? false : true, asset: asset)
+                    }
+                    
                     let groupSet = Set(photoAssets.map { $0.asset.localIdentifier })
                     if !groupedPhotoIdentifiers.contains(groupSet) {
                         groupedPhotoIdentifiers.insert(groupSet)
@@ -255,6 +268,7 @@ final class AssetManagementService {
                         print("  => Group already known, skip.")
                     }
                 }
+
             }
         }
         print("[AssetManagementService] findDuplicatesWithinHashGroups done. totalGroups=\(duplicatePhotoGroups.count)")
@@ -292,7 +306,7 @@ final class AssetManagementService {
     }
     
     // MARK: - Методы загрузки (requestImage)
-
+    
     /// Загрузка миниатюры (64x64). Может вернуть nil, если системный preview не найден.
     private func loadThumbnailSync(for asset: PHAsset, targetSize: CGSize) -> UIImage? {
         let options = PHImageRequestOptions()
@@ -334,7 +348,7 @@ final class AssetManagementService {
     }
     
     // MARK: - Fallback (requestImageDataAndOrientation)
-
+    
     /// Если requestImage не дал результат, пробуем достать сырые данные и сами ресайзить до 64x64
     private func loadThumbnailDataFallback(for asset: PHAsset, targetSize: CGSize) -> UIImage? {
         guard let original = loadImageDataSync(for: asset) else {
@@ -375,7 +389,7 @@ final class AssetManagementService {
     }
     
     // MARK: - Цепочка сравнений
-
+    
     private func areImagesLikelyDuplicates(_ image1: UIImage, _ image2: UIImage) -> Bool {
         print("      [Compare] Start comparing 2 images..")
         
@@ -573,57 +587,68 @@ final class AssetManagementService {
         UIGraphicsEndImageContext()
         return newImg
     }
-}
-
-// MARK: - Пример работы со скриншотами
-extension AssetManagementService {
     
-    func fetchScreenshotsGroupedByMonth(completion: @escaping ([ScreenshotsAsset]) -> Void) {
-        print("[AssetManagementService] fetchScreenshotsGroupedByMonth -> requesting authorization..")
-        PHPhotoLibrary.requestAuthorization { [weak self] status in
-            guard let self = self else { return }
-            guard status == .authorized else {
-                print("[AssetManagementService] No access to Photo Library for screenshots. Status = \(status.rawValue)")
-                completion([])
+    // MARK: - Сканирование скриншотов
+    /// Этот метод запускается вместе с поиском дубликатов
+    private func startScanningScreenshots() {
+        print("[AssetManagementService] startScanningScreenshots called.")
+        // Если уже сканировали – пропускаем
+        screenshotsQueue.sync {
+            if self.screenshotsAssets != nil {
+                print("[AssetManagementService] Screenshots already scanned, skipping.")
                 return
             }
-            
-            print("[AssetManagementService] fetchScreenshotsGroupedByMonth -> loading screenshots from library.")
-            let fetchOptions = PHFetchOptions()
-            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            
-            let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-            var screenshotGroups: [String: [PHAsset]] = [:]
-            
-            fetchResult.enumerateObjects { asset, _, _ in
-                if asset.mediaSubtypes.contains(.photoScreenshot),
-                   let creationDate = asset.creationDate {
-                    let monthYearKey = self.formatDateToMonthYear(creationDate)
-                    screenshotGroups[monthYearKey, default: []].append(asset)
-                }
+        }
+        
+        // Запускаем сканирование в фоне
+        DispatchQueue.global(qos: .background).async {
+            let screenshots = self.scanScreenshots()
+            self.screenshotsQueue.async(flags: .barrier) {
+                self.screenshotsAssets = screenshots
+                print("[AssetManagementService] Screenshots scan completed with \(screenshots.count) групп(ами).")
             }
-            
-            let totalScreens = screenshotGroups.values.reduce(0) { $0 + $1.count }
-            print("[AssetManagementService] totalScreenshots = \(totalScreens)")
-            
-            // Сортируем по дате (новые сверху)
-            let sortedGroups = screenshotGroups.sorted { lhs, rhs in
-                guard let lhsDate = self.parseMonthYear(lhs.key),
-                      let rhsDate = self.parseMonthYear(rhs.key) else {
-                    return false
-                }
-                return lhsDate > rhsDate
-            }
-            
-            // Формируем ScreenshotsAsset
-            let screenshotsAssets = sortedGroups.map { key, assets in
-                let group = assets.map { PhotoAsset(isSelected: false, asset: $0) }
-                print("  [AssetManagementService] \(key): \(group.count) screenshots.")
-                return ScreenshotsAsset(description: key, groupAsset: group)
-            }
-            completion(screenshotsAssets)
         }
     }
+    
+    /// Метод, выполняющий сканирование скриншотов и группирующий их по месяцу
+    private func scanScreenshots() -> [ScreenshotsAsset] {
+        print("[AssetManagementService] scanScreenshots -> loading screenshots from library.")
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        
+        let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        var screenshotGroups: [String: [PHAsset]] = [:]
+        
+        fetchResult.enumerateObjects { asset, _, _ in
+            if asset.mediaSubtypes.contains(.photoScreenshot),
+               let creationDate = asset.creationDate {
+                let monthYearKey = self.formatDateToMonthYear(creationDate)
+                screenshotGroups[monthYearKey, default: []].append(asset)
+            }
+        }
+        
+        let totalScreens = screenshotGroups.values.reduce(0) { $0 + $1.count }
+        print("[AssetManagementService] totalScreenshots = \(totalScreens)")
+        
+        // Сортируем группы по дате (новые сверху)
+        let sortedGroups = screenshotGroups.sorted { lhs, rhs in
+            guard let lhsDate = self.parseMonthYear(lhs.key),
+                  let rhsDate = self.parseMonthYear(rhs.key) else {
+                return false
+            }
+            return lhsDate > rhsDate
+        }
+        
+        // Формируем ScreenshotsAsset
+        let screenshotsAssets = sortedGroups.map { key, assets in
+            let group = assets.map { PhotoAsset(isSelected: false, asset: $0) }
+            print("  [AssetManagementService] \(key): \(group.count) screenshots.")
+            return ScreenshotsAsset(description: key, groupAsset: group)
+        }
+        return screenshotsAssets
+    }
+    
+    // MARK: - Прочие вспомогательные методы (форматирование дат)
     
     private func formatDateToMonthYear(_ date: Date) -> String {
         let formatter = DateFormatter()
@@ -635,5 +660,50 @@ extension AssetManagementService {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"
         return formatter.date(from: string)
+    }
+}
+
+// MARK: - Пример работы со скриншотами
+extension AssetManagementService {
+    
+    /// Если скриншоты уже были найдены (и сохранены), то сразу отдаём кэш;
+    /// иначе – запускаем поиск (с запросом авторизации, если необходимо).
+    func fetchScreenshotsGroupedByMonth(completion: @escaping ([ScreenshotsAsset]) -> Void) {
+        // Извлекаем кэш в локальную переменную
+        let cachedScreenshots: [ScreenshotsAsset]? = screenshotsQueue.sync {
+            return self.screenshotsAssets
+        }
+        
+        // Если кэш уже заполнен, сразу возвращаем его и выходим из метода
+        if let cached = cachedScreenshots {
+            print("[AssetManagementService] Returning cached screenshots.")
+            DispatchQueue.main.async {
+                completion(cached)
+            }
+            return
+        }
+        
+        // Если кэш ещё не заполнен, запрашиваем авторизацию
+        print("[AssetManagementService] fetchScreenshotsGroupedByMonth -> requesting authorization..")
+        PHPhotoLibrary.requestAuthorization { [weak self] status in
+            guard let self = self else { return }
+            guard status == .authorized else {
+                print("[AssetManagementService] No access to Photo Library for screenshots. Status = \(status.rawValue)")
+                DispatchQueue.main.async {
+                    completion([])
+                }
+                return
+            }
+            
+            print("[AssetManagementService] fetchScreenshotsGroupedByMonth -> loading screenshots from library.")
+            let screenshots = self.scanScreenshots()
+            // Сохраняем результат сканирования в кэш с использованием barrier для потокобезопасности
+            self.screenshotsQueue.async(flags: .barrier) {
+                self.screenshotsAssets = screenshots
+                DispatchQueue.main.async {
+                    completion(screenshots)
+                }
+            }
+        }
     }
 }

@@ -16,6 +16,14 @@ enum UserDefaultsService {
     @UserDefault(.isPassOnboarding, defaultValue: false)
     static var isPassOnboarding: Bool
 
+    /// is calendar access
+    @UserDefault(.isGetCalendarAccess, defaultValue: false)
+    static var isGetCalendarAccess: Bool
+
+    /// is contacts access
+    @UserDefault(.isGetContactsAccess, defaultValue: false)
+    static var isGetContactsAccess: Bool
+
     static func setValues(values: [UserDefault<Any>.Key: Any?]) {
         let keys = Array(values.keys)
         let values = Array(values.values)
@@ -27,6 +35,8 @@ enum UserDefaultsService {
     private static let excludedKeys: [UserDefault<Any>.Key] = [
         .isHaveSubscribe,
         .isPassOnboarding,
+        .isGetCalendarAccess,
+        .isGetContactsAccess
     ]
 
     static func removeAll() {

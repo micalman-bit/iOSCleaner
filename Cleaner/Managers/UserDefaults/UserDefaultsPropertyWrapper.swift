@@ -49,5 +49,7 @@ extension UserDefault {
     enum Key: String {
         case isHaveSubscribe = "isHaveSubscribe"
         case isPassOnboarding = "IsPassOnboarding"
+        case isGetCalendarAccess = "isGetCalendarAccess"
+        case isGetContactsAccess = "isGetContactsAccess"
     }
 }

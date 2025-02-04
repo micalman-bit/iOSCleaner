@@ -21,6 +21,8 @@ final class ContactsViewModel: ObservableObject {
     @Published var duplicateCount: String = ""
     @Published var groupCount: String = ""
     
+    @Published var progressLoading: String = "0%"
+    
     @Published var isEnabledButton: Bool = false
     
     @Published var duplicates: [ContactDuplicateGroup] = []
@@ -144,21 +146,24 @@ final class ContactsViewModel: ObservableObject {
     }
 
     private func getDuplicateContactGroups() {
-        contactManager.getDuplicateContactGroups { duplicateGroups, isSearching in
-            if !isSearching {
-                DispatchQueue.main.async { [weak self] in
-                    if let duplicate = duplicateGroups, !duplicate.isEmpty {
-                        self?.duplicates = duplicate
-                        self?.updateDuplicateCount()
-                        self?.screenState = .content
-                    } else {
-                        self?.screenState = .allClean
-                    }
+        let status = contactManager.getDuplicateSearchStatus()
+
+        if !status.isScanning {
+            DispatchQueue.main.async { [weak self] in
+                if !status.duplicateGroups.isEmpty {
+                    self?.duplicates = status.duplicateGroups
+                    self?.updateDuplicateCount()
+                    self?.screenState = .content
+                } else {
+                    self?.screenState = .allClean
                 }
-            } else {
-                DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                    self?.getDuplicateContactGroups()
-                }
+            }
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.progressLoading = "\(Int(status.progress * 100))%"
+            }
+            DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.getDuplicateContactGroups()
             }
         }
     }

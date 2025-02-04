@@ -26,12 +26,14 @@ struct SimilarAssetView: View {
         VStack {
             makeHeaderView()
             
-            if viewModel.isAnalyzing {
+            switch viewModel.screenState {
+            case .loading:
                 makeLoaderView()
-            } else {
+                
+            case .content:
                 makePhotosListView()
                 
-                VStack {
+                VStack(spacing: .zero) {
                     
                     HStack(spacing: 8) {
                         Text("DELETE \(viewModel.selectedPhotos) PHOTOS")
@@ -49,7 +51,18 @@ struct SimilarAssetView: View {
                 .background(Color.white)
                 .padding(vertical: 12, horizontal: 20)
                 .cornerRadius(24, corners: [.topLeft, .topRight])
-                
+
+            case .allClean:
+                VStack {
+                    Spacer(minLength: .zero)
+                    
+                    makeAllCleanView()
+                        .background(Color.hexToColor(hex: "#F4F7FA"))
+                    
+                    Spacer(minLength: .zero)
+                    
+                    makeBackButtonView()
+                }.background(Color.hexToColor(hex: "#F4F7FA"))
             }
             
             Spacer(minLength: .zero)
@@ -102,6 +115,7 @@ struct SimilarAssetView: View {
                 VStack(spacing: .zero) {
                     Text("\(viewModel.analysisProgress)%")
                         .font(.system(size: 62, weight: .semibold))
+                        .foregroundColor(.Typography.textDark)
                     
                     Text("Analysis in\nprogress")
                         .textStyle(.flatCount)
@@ -152,6 +166,8 @@ struct SimilarAssetView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(viewModel.title)
                 .font(.system(size: 32, weight: .semibold))
+                .foregroundColor(.Typography.textDark)
+                
             
             Text("\(viewModel.totalPhotos) photos")
                 .textStyle(.price, textColor: .Typography.textGray)
@@ -232,6 +248,50 @@ struct SimilarAssetView: View {
            let assetIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.id == asset.id }) {
             viewModel.openSimilarPhotoPicker(groupInex: groupIndex, selectedItemInex: assetIndex)
         }
+    }
+    
+    // MARK: - All Clean
+
+    @ViewBuilder private func makeAllCleanView() -> some View {
+        VStack(spacing: 50) {
+            Image("allClean")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 166, height: 177)
+                .foregroundColor(.blue)
+
+            VStack(alignment: .center, spacing: 10) {
+                Text("Everything is well-\norganized!")
+                    .foregroundColor(.Typography.textDark)
+                    .font(.system(size: 24, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                
+                Text("No unnecessary files here. Your device is well-organized and optimized in this area.")
+                    .foregroundColor(.Typography.textGray)
+                    .font(.system(size: 17))
+                    .multilineTextAlignment(.center)
+            }.frame(width: 316)
+            
+
+        }
+    }
+
+    // MARK: - Back Button
+
+    @ViewBuilder private func makeBackButtonView() -> some View {
+        VStack(alignment: .center) {
+            Text("BACK TO HOME")
+                .foregroundColor(.white)
+                .font(.system(size: 17, weight: .semibold))
+                .padding(vertical: 20, horizontal: 52)
+                .frame(width: .screenWidth - 20)
+                .background(Color.blue)
+                .cornerRadius(55)
+        }
+        .background(Color.white)
+        .padding(vertical: 12, horizontal: 20)
+        .cornerRadius(24, corners: [.topLeft, .topRight])
+        .asButton(style: .scale(.light), action: viewModel.dismiss)
     }
 }
 

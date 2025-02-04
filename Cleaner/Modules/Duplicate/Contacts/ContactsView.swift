@@ -220,8 +220,9 @@ struct ContactsView: View {
                     .padding(top: 110)
                 
                 VStack(spacing: .zero) {
-                    Text("22%")
+                    Text(viewModel.progressLoading)
                         .font(.system(size: 62, weight: .semibold))
+                        .foregroundColor(.Typography.textDark)
                     
                     Text("Analysis in\nprogress")
                         .textStyle(.flatCount)
