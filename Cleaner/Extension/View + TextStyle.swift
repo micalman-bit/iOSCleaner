@@ -51,7 +51,7 @@ struct FontTemplateModifier: ViewModifier {
 // MARK: - View + TextStyle
 
 extension View {
-    func taTextStyle(_ style: FontStyle, textColor: Color = .Typography.textDark) -> some View {
+    func textStyle(_ style: FontStyle, textColor: Color = .Typography.textDark) -> some View {
         let fontModifier = FontTemplateModifier(template: style.fontTemplate(color: textColor))
         return modifier(fontModifier)
     }

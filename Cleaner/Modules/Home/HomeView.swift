@@ -10,127 +10,337 @@ import SwiftUI
 struct HomeView: View {
     
     // MARK: - Private Properties
-
+    
     @ObservedObject private var viewModel: HomeViewModel
-
+    
     // MARK: - Init
-
+    
     init(viewModel: HomeViewModel) {
         self.viewModel = viewModel
     }
-
-    // MARK: - Body
-
-    var body: some View {
-        VStack {
-            makeHeaderView()
-                                    
-            makeContentView()
-            
-            makeButtonListView()
-        }
-        .background(Color.white)
-    }
     
-    // MARK: - ViewBuilder
+    // MARK: - Body
+    
+    var body: some View {
+        ZStack(alignment: .top) {
+            Image("homeBg")
+                .resizable()
+                .scaledToFit()
+                .imageScale(.large)
+                .frame(width: .screenWidth, height: .screenHeight - 150)
+                .clipped()
+                .overlay(
+                    Color.hexToColor(hex: "#C1E3FF").opacity(0.5)
+                        .blendMode(.luminosity)
+                )
+                .contrast(1.1)
+
+
+            VStack {
+                makeHeaderView()
+                    .padding(top: 50)
+                
+                makeContentView()
+                    .padding(bottom: 20)
+                
+                Spacer(minLength: .zero)
+                
+                makeButtonListView()
+            }
+        }
+        .ignoresSafeArea(edges: .top)
+        .onAppear { viewModel.checkAccess() }
+    }
+
+
+    // MARK: - Header View
     
     @ViewBuilder private func makeHeaderView() -> some View {
-        // Circle Progress Section
-        VStack(spacing: .zero) {
-            Text("iPhone 14 Pro")
-                .font(.system(size: 24, weight: .bold))
-            Text("iOS 18.0")
-                .font(.system(size: 14, weight: .regular))
-                .foregroundColor(.gray)
-                .padding(.bottom, 20)
+        HStack(spacing: .zero) {
+            Image("setting")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 40, height: 40)
+                .padding(leading: 24)
+                .asButton(style: .scale(.heavy), action: viewModel.didTapSetting)
+            
+            Spacer(minLength: .zero)
+            
+            VStack(spacing: .zero) {
+                Text(UIDevice.current.name)
+                    .textStyle(.h1)
+                Text("iOS " + UIDevice.current.systemVersion)
+                    .textStyle(.text)
+                    .padding(.bottom, 20)
+            }
+            .padding(top: 14)
+            .asButton(style: .opacity, action: { viewModel.konamiCodeCounter += 1 })
+            
+            
+            
+            Spacer(minLength: .zero)
+            
+            switch viewModel.isHaveSubscription {
+            case true:
+                HStack(spacing: 3) {
+                    Image("tick")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .clipped()
+                }
+                .frame(width: 45, height: 38)
+                .background(Color.white)
+                .cornerRadius(20)
+                .padding(trailing: 24)
+                .asButton(style: .scale(.heavy), action: viewModel.didTapSubscription)
+
+
+            case false:
+                HStack(spacing: 3) {
+                    Image("crown")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                        .clipped()
+
+                    Text("PRO")
+                        .textStyle(.textBold, textColor: .Typography.textWhite)
+                }
+                .frame(width: 68, height: 34)
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(
+                            colors: Color.Gradients.proSubscriptionLogo
+                        ),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .cornerRadius(20)
+                .asButton(style: .scale(.heavy), action: viewModel.didTapSubscription)
+            }
+            
         }
-        .padding()
     }
+        
     
+    // MARK: - Content View
     
     @ViewBuilder private func makeContentView() -> some View {
         VStack(spacing: .zero) {
-            ZStack {
-                // Background circle
-                Circle()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 12)
-                
-                // Progress circle
-                Circle()
-                    .trim(from: 0, to: 0.5) // 50%
-                    .stroke(Color.green, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                
-                VStack {
-                    Image(systemName: "face.smiling") // Emoji in the center
-                        .font(.system(size: 32))
-                        .padding(.bottom, 10)
-                    Text("50%")
-                        .font(.system(size: 32, weight: .bold))
-                    Text("23.2 GB / 128 GB available")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                }
-            }
-            .frame(width: 180, height: 180)
+            SemiRoundedProgressView(
+                progress: viewModel.progress,
+                totalSize: 250,
+                freeSpaceText: String(format: "%.1f", viewModel.freeSpaceGB),
+                totalSpaceText: String(format: "%.1f", viewModel.totalSpaceGB),
+                smileText: viewModel.getSmile(),
+                progressLineColor: viewModel.getLineColor()
+            )
+            .frame(width: 250, height: 250)
             
             Spacer().frame(height: 20)
             
-            // Smart Clean Button
-            Button(action: {
-                // Smart clean action
-            }) {
-                Text("SMART CLEAN NOW")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(12)
+            HStack(spacing: 6) {
+                Image("")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .clipped()
+                
+                Text("SMART ANALYZE")
+                    .textStyle(.textBig, textColor: .Typography.textWhite)
+                
             }
-            .padding(.horizontal)
+            .padding(vertical: 20, leading: 48.5, trailing: 62.5)
+            .background(Color.blue)
+            .cornerRadius(55)
+            .padding(top: 20)
+            .asButton(style: .scale(.light), action: viewModel.didTapSmartAnalize)
         }
-        .padding()
+        .padding(top: 28)
     }
-    
     
     @ViewBuilder private func makeButtonListView() -> some View {
-        // Bottom List Section
         VStack(spacing: 20) {
-            HStack {
-                Image(systemName: "photo")
-                Text("Photo & Video")
-                    .font(.system(size: 16))
-                Spacer()
-                Text("1.8 GB")
-                    .foregroundColor(.blue)
-            }
-            .padding(.horizontal)
             
-            HStack {
-                Image(systemName: "person.crop.circle")
-                Text("Contact")
-                    .font(.system(size: 16))
-                Spacer()
-                Text("44")
-                    .foregroundColor(.blue)
-            }
-            .padding(.horizontal)
+            ///  Photo & Video
+            VStack(spacing: .zero) {
+                HStack {
+                    Image("photoLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                        .clipped()
+                    
+                    switch viewModel.isPhonoAndVideoAvailable {
+                    case true:
+                        HStack(spacing: 10) {
+                            Text("Photo & Video")
+                                .textStyle(.h1, textColor: .Typography.textDark)
+                            
+                            Spacer(minLength: .zero)
+//                            Text(viewModel.totalFilesCount)
+//                                .font(.system(size: 17, weight: .regular))
+//                                .foregroundColor(.Typography.textDark)
+
+                        }.frame(maxWidth: .infinity)
+                    case false:
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Photo & Video")
+                                .textStyle(.h1, textColor: .Typography.textDark)
+                            
+                            Text("Need access, click to allow")
+                                .textStyle(.text, textColor: .Typography.textGray)
+                            
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    makeButtonOfItemView(
+                        .photoVideo,
+                        isEnabled: viewModel.isPhonoAndVideoAvailable,
+                        isLoading: viewModel.isPhonoAndVideoLoaderActive,
+                        title: viewModel.phonoAndVideoGBText
+                    )
+                }
+                
+                Divider()
+                    .padding(top: 32)
+            }.asButton(style: .opacity, action: viewModel.didTapPhotoAndVideo)
             
-            HStack {
-                Image(systemName: "calendar")
-                Text("Calendar")
-                    .font(.system(size: 16))
-                Spacer()
-                Text("Need access, click to allow")
-                    .foregroundColor(.orange)
-                    .font(.system(size: 14))
-            }
-            .padding(.horizontal)
+            /// Contact
+            VStack(spacing: .zero) {
+                HStack {
+                    Image("contactLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                        .clipped()
+                    
+                    switch viewModel.isСontactsAvailable {
+                    case true:
+                        Text("Contact")
+                            .textStyle(.h1, textColor: .Typography.textDark)
+                    case false:
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Contact")
+                                .textStyle(.h1, textColor: .Typography.textDark)
+
+                            Text("Need access, click to allow")
+                                .textStyle(.text, textColor: .Typography.textGray)
+                            
+                        }
+                    }
+                    
+                    Spacer()
+
+                    makeButtonOfItemView(
+                        .contact,
+                        isEnabled: viewModel.isСontactsAvailable,
+                        isLoading: viewModel.isСontactsLoaderActive,
+                        title: viewModel.contactsText
+                    )
+                }
+                
+                Divider()
+                    .padding(top: 32)
+            }.asButton(style: .opacity, action: viewModel.didTapContact)
+
+            /// Calendar
+            VStack(spacing: .zero) {
+                HStack {
+                    Image("calendarLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                        .clipped()
+                    
+                    switch viewModel.isCalendarAvailable {
+                    case true:
+                        Text("Calendar")
+                            .textStyle(.h1, textColor: .Typography.textDark)
+                    case false:
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Calendar")
+                                .textStyle(.h1, textColor: .Typography.textDark)
+                            
+                            Text("Need access, click to allow")
+                                .textStyle(.text, textColor: .Typography.textGray)
+                        }
+                    }
+                    
+                    Spacer(minLength: .zero)
+                    
+                    makeButtonOfItemView(
+                        .calendar,
+                        isEnabled: viewModel.isCalendarAvailable,
+                        isLoading: viewModel.isCalendarLoaderActive,
+                        title: viewModel.сalendarText
+                    )
+                }
+                
+                Divider()
+                    .padding(top: 32)
+            }.asButton(style: .opacity, action: viewModel.didTapCalendar)
         }
-        
-        Spacer()
+        .padding(top: 31, horizontal: 23)
+        .background(Color.white)
+        .cornerRadius(24, corners: [.topLeft, .topRight])
     }
+    
+    // MARK: - Button List View
+
+    @ViewBuilder private func makeButtonOfItemView(
+        _ type: HomeButtonType,
+        isEnabled: Bool,
+        isLoading: Bool,
+        title: String
+    ) -> some View {
+        switch isEnabled {
+        case true:
+            ZStack {
+                HStack(spacing: .zero) {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                            .scaleEffect(1.5)
+                    } else {
+                        Text(title)
+                            .foregroundColor(.blue)
+                        
+                        Image("arrow_down_sharp_right")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 24, height: 24)
+                            .clipped()
+                    }
+                }
+                .padding(vertical: 7, leading: 14, trailing: 4)
+                .background(Color.Background.blueLight)
+                .cornerRadius(40)
+            }
+        case false:
+            HStack {
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                        .scaleEffect(1.5)
+                } else {
+                    Image("arrow_down_sharp_right")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .clipped()
+                }
+            }
+            .padding(vertical: 7, horizontal: 7)
+            .background(Color.Background.blueLight)
+            .cornerRadius(40)
+        }
+    }
+
 }
 
 struct CleanerView_Previews: PreviewProvider {
