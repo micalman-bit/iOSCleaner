@@ -39,12 +39,12 @@ final class VideoManagementService {
     private var analyzedVideoGroups: [[PHAsset]] = []
     
     /// Кэш для дубликатов видео (после завершения анализа или для промежуточных результатов)
-    private var cachedVideoDuplicates: [DuplicateAssetGroup]? = nil
+    var cachedVideoDuplicates: [DuplicateAssetGroup]? = nil
     
     // MARK: - Свойства для анализа экранных записей
     private var screenRecordingsTimer: Timer?
     /// Кэш для групп экранных записей (после завершения анализа или для промежуточных результатов)
-    private var cachedScreenRecordings: [ScreenshotsAsset]? = nil
+    var cachedScreenRecordings: [ScreenshotsAsset]? = nil
     /// Для сравнения промежуточных результатов (описание группы и число элементов)
     private var lastScreenRecordingsSummary: [(String, Int)] = []
     
@@ -68,7 +68,7 @@ final class VideoManagementService {
                 // Обновляем кэш на основе текущего состояния analyzedVideoGroups.
                 let intermediateGroups: [DuplicateAssetGroup] = self.analyzedVideoGroups.map { phGroup in
                     let photoAssets = phGroup.map { PhotoAsset(isSelected: false, asset: $0) }
-                    return DuplicateAssetGroup(assets: photoAssets)
+                    return DuplicateAssetGroup(isSelectedAll: false, assets: photoAssets)
                 }
                 self.cachedVideoDuplicates = intermediateGroups
             }
@@ -76,7 +76,7 @@ final class VideoManagementService {
             guard let self = self else { return }
             let groups: [DuplicateAssetGroup] = self.analyzedVideoGroups.map { group in
                 let photoAssets = group.map { PhotoAsset(isSelected: false, asset: $0) }
-                return DuplicateAssetGroup(assets: photoAssets)
+                return DuplicateAssetGroup(isSelectedAll: false, assets: photoAssets)
             }
             self.cachedVideoDuplicates = groups
             print("[startDuplicateScan] Видеоанализ завершён. Найдено \(groups.count) групп.")
@@ -104,7 +104,7 @@ final class VideoManagementService {
         let progress = totalVideosCount > 0 ? Double(processedVideosCount) / Double(totalVideosCount) : 0.0
         let groups: [DuplicateAssetGroup] = analyzedVideoGroups.map { group in
             let photoAssets = group.map { PhotoAsset(isSelected: false, asset: $0) }
-            return DuplicateAssetGroup(assets: photoAssets)
+            return DuplicateAssetGroup(isSelectedAll: false, assets: photoAssets)
         }
         return (isScanning: isAnalyzingVideos, progress: progress, groups: groups)
     }
@@ -182,7 +182,7 @@ final class VideoManagementService {
                         self.analyzedVideoGroups.append(group)
                         let intermediateGroups: [DuplicateAssetGroup] = self.analyzedVideoGroups.map { phGroup in
                             let photoAssets = phGroup.map { PhotoAsset(isSelected: false, asset: $0) }
-                            return DuplicateAssetGroup(assets: photoAssets)
+                            return DuplicateAssetGroup(isSelectedAll: false, assets: photoAssets)
                         }
                         self.cachedVideoDuplicates = intermediateGroups
                         DispatchQueue.main.async {
@@ -480,7 +480,7 @@ extension VideoManagementService {
                 // Первоначальное получение групп экранных записей
                 self.fetchScreenRecordingsGroupedByMonth { initialGroups in
                     DispatchQueue.main.async {
-                        self.lastScreenRecordingsSummary = initialGroups.map { ($0.description, $0.groupAsset.count) }
+                        self.lastScreenRecordingsSummary = initialGroups.map { ($0.title, $0.groupAsset.count) }
                         // Сохраняем промежуточный результат в кэш
                         self.cachedScreenRecordings = initialGroups
                         onIntermediateUpdate(initialGroups)
@@ -494,7 +494,7 @@ extension VideoManagementService {
                             return
                         }
                         self.fetchScreenRecordingsGroupedByMonth { groups in
-                            let newSummary = groups.map { ($0.description, $0.groupAsset.count) }
+                            let newSummary = groups.map { ($0.title, $0.groupAsset.count) }
                             if newSummary.elementsEqual(self.lastScreenRecordingsSummary, by: { (lhs, rhs) in
                                 return lhs.0 == rhs.0 && lhs.1 == rhs.1
                             }) {
@@ -547,7 +547,8 @@ extension VideoManagementService {
             
             let recordingsAssets = sortedGroups.map { key, assets in
                 ScreenshotsAsset(
-                    description: key,
+                    title: key,
+                    isSelectedAll: false,
                     groupAsset: assets.map { PhotoAsset(isSelected: false, asset: $0) }
                 )
             }
@@ -556,12 +557,8 @@ extension VideoManagementService {
     }
     
     private func isScreenRecording(_ asset: PHAsset) -> Bool {
-        guard let resource = PHAssetResource.assetResources(for: asset).first else {
-            return false
-        }
-        let filename = resource.originalFilename.lowercased()
-        let screenRecordingPatterns = ["rpreplay", "screen recording", "screen_capture", "screenrecording"]
-        return screenRecordingPatterns.contains { filename.contains($0) }
+        // 524288 (1 << 19) — это бит, отвечающий за screenRecording
+        return (asset.mediaSubtypes.rawValue & 524288) != 0
     }
     
     private func formatDateToMonthYear(_ date: Date) -> String {

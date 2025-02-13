@@ -24,6 +24,9 @@ final class PaywallViewModel: ObservableObject {
     @Published var isSelectWeekPlan: Bool
     
     @Published var isPassTrail: Bool
+    
+    /// URL для открытия во встроенном WebView
+    @Published var selectedURL: URL? = nil
 
     // MARK: - Private Properties
 
@@ -40,7 +43,7 @@ final class PaywallViewModel: ObservableObject {
         self.service = service
         self.router = router
         
-        self.isSelectWeekPlan = true // fix
+        self.isSelectWeekPlan = true
         self.isPassTrail = false
     }
 
@@ -56,5 +59,17 @@ final class PaywallViewModel: ObservableObject {
     
     func didTapMonthPlan() {
         isEnabled = false
+    }
+    
+    func didTapTermsOfUse() {
+        if let url = URL(string: "https://www.google.com") {
+            selectedURL = url
+        }
+    }
+    
+    func didTapPrivacyPolicy() {
+        if let url = URL(string: "https://www.apple.com") {
+            selectedURL = url
+        }
     }
 }

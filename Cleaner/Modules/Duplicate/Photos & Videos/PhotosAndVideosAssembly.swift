@@ -8,12 +8,15 @@
 import UIKit
 
 enum PhotosAndVideosAssembly {
-    static func openPhotosAndVideos() -> UIViewController {
+    static func openPhotosAndVideos(
+        screenType: PhotosAndVideosFromType
+    ) -> UIViewController {
         let router = PhotosAndVideosRouter()
         let service = PhotosAndVideosService()
         let viewModel = PhotosAndVideosViewModel(
             service: service,
-            router: router
+            router: router,
+            screenType: screenType
         )
 
         let view = PhotosAndVideosView(viewModel: viewModel)

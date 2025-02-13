@@ -11,17 +11,18 @@ enum SimilarAssetAssembly {
     static func openSimilarAsset(
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
-        type: SimilarAssetType
+        type: SimilarAssetType,
+        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void
     ) -> UIViewController {
         let router = SimilarAssetRouter()
         let service = SimilarAssetService()
-        
         let viewModel = SimilarAssetViewModel(
             service: service,
             router: router,
             photoOrVideo: photoOrVideo,
             screenshotsOrRecording: screenshotsOrRecording,
-            type: type
+            type: type,
+            backTapAction: backTapAction
         )
 
         let view = SimilarAssetView(viewModel: viewModel)

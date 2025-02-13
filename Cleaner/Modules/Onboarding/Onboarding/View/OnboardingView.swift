@@ -44,9 +44,11 @@ struct OnboardingView: View {
                     HStack(spacing: 32) {
                         Text("Terms of Use")
                             .textStyle(.smallText, textColor: .Typography.textGray)
+                            .asButton(style: .opacity, action: viewModel.didTapTermsOfUse)
                         
                         Text("Privacy Policy")
                             .textStyle(.smallText, textColor: .Typography.textGray)
+                            .asButton(style: .opacity, action: viewModel.didTapPrivacyPolicy)
                     }
                     .opacity(currentPage == 0 ? 1 : 0)
                     .animation(.easeInOut, value: currentPage)
@@ -60,6 +62,9 @@ struct OnboardingView: View {
             }
             .frame(maxWidth: .screenWidth)
             .background(Color.white)
+        }
+        .sheet(item: $viewModel.selectedURL) { url in
+            WebView(url: url)
         }
         .ignoresSafeArea(edges: .bottom)
         .background(Color.hexToColor(hex: "#EBF0FF"))

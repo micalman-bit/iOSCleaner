@@ -9,6 +9,9 @@ import Foundation
 
 final class OnboardingViewModel: ObservableObject {
     
+    /// URL для открытия во встроенном WebView
+    @Published var selectedURL: URL? = nil
+
     // MARK: - Private Properties
 
     private let service: OnboardingService
@@ -24,8 +27,20 @@ final class OnboardingViewModel: ObservableObject {
         self.router = router
     }
     
+    func didTapTermsOfUse() {
+        if let url = URL(string: "https://www.google.com") {
+            selectedURL = url
+        }
+    }
+    
+    func didTapPrivacyPolicy() {
+        if let url = URL(string: "https://www.apple.com") {
+            selectedURL = url
+        }
+    }
+
     func openPaywall() {
-        UserDefaultsService.isPassOnboarding = false
+        UserDefaultsService.isPassOnboarding = true
         router.openPaywall()
     }
 }

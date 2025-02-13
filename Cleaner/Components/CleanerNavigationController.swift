@@ -37,8 +37,9 @@ final class CleanerNavigationController: UINavigationController {
         super.viewDidLoad()
         _ = errorHeaderView
         currentStatusBarStyle = .default
-
+        navigationController?.interactivePopGestureRecognizer?.delegate = self
         navigationBar.isHidden = true
+        interactivePopGestureRecognizer?.isEnabled = false
         title = nil
     }
 
@@ -63,5 +64,11 @@ final class CleanerNavigationController: UINavigationController {
     // MARK: - Actions
 
     deinit {
+    }
+}
+
+extension CleanerNavigationController: UIGestureRecognizerDelegate {
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        return false
     }
 }

@@ -18,12 +18,8 @@ final class SimilarPhotoPickerViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private let router: SimilarPhotoPickerRouter
-    
     private let sucessAction: ([PhotoAsset]) -> Void
-    
-    // MARK: - Public Properties
 
-    
     // MARK: - Init
 
     init(
@@ -38,11 +34,22 @@ final class SimilarPhotoPickerViewModel: ObservableObject {
         self.sucessAction = sucessAction
     }
  
-    // MARK: - Public Func
+    // MARK: - Public Methods
     
     func dismiss() {
         sucessAction(assets)
         router.dismiss()
     }
-
+    
+    /// Переключает состояние выделения для текущего выбранного изображения.
+    /// После изменения «перезаписываем» массив, чтобы уведомить подписчиков.
+    func toggleSelectionForSelectedImage() {
+        if let index = assets.firstIndex(where: { $0.id == selectedImage.id }) {
+            assets[index].isSelected.toggle()
+            // Обновляем selectedImage для отражения изменений в UI
+            selectedImage = assets[index]
+            // Принудительно обновляем массив, чтобы @Published сработал
+            assets = assets
+        }
+    }
 }

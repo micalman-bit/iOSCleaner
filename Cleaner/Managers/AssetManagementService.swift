@@ -14,7 +14,8 @@ import CryptoKit
 // Модель для найденной группы дубликатов
 struct DuplicateAssetGroup: Identifiable {
     let id = UUID()
-    let assets: [PhotoAsset]
+    var isSelectedAll: Bool
+    var assets: [PhotoAsset]
 }
 
 /// Пример менеджера для поиска дубликатов фото (без @Published).
@@ -28,7 +29,7 @@ final class AssetManagementService {
     
     private var isScanning: Bool = false
     private var scanProgress: Double = 0.0
-    private var duplicatePhotoGroups: [DuplicateAssetGroup] = []
+    var duplicatePhotoGroups: [DuplicateAssetGroup] = []
     
     // MARK: - Настройки
     
@@ -58,7 +59,7 @@ final class AssetManagementService {
         
     // MARK: - Кэш скриншотов
     /// Сохранённые результаты сканирования скриншотов
-    private var screenshotsAssets: [ScreenshotsAsset]? = nil
+    var screenshotsAssets: [ScreenshotsAsset]? = nil
     /// Очередь для синхронизированного доступа к screenshotsAssets
     private let screenshotsQueue = DispatchQueue(label: "com.yourapp.AssetManagementService.screenshotsQueue", attributes: .concurrent)
     
@@ -261,7 +262,7 @@ final class AssetManagementService {
                     let groupSet = Set(photoAssets.map { $0.asset.localIdentifier })
                     if !groupedPhotoIdentifiers.contains(groupSet) {
                         groupedPhotoIdentifiers.insert(groupSet)
-                        let group = DuplicateAssetGroup(assets: photoAssets)
+                        let group = DuplicateAssetGroup(isSelectedAll: false, assets: photoAssets)
                         duplicatePhotoGroups.append(group)
                         print("  => Created new group with size=\(photoAssets.count)")
                     } else {
@@ -299,12 +300,17 @@ final class AssetManagementService {
         assets.reserveCapacity(fetchResult.count)
         
         fetchResult.enumerateObjects { asset, _, _ in
+            // Пропускаем, если это скриншот
+            guard !asset.mediaSubtypes.contains(.photoScreenshot) else {
+                return
+            }
             assets.append(asset)
         }
-        print("[AssetManagementService] fetchAllImageAssets -> found \(assets.count) assets.")
+        
+        print("[AssetManagementService] fetchAllImageAssets -> found \(assets.count) non-screenshot assets.")
         return assets
     }
-    
+
     // MARK: - Методы загрузки (requestImage)
     
     /// Загрузка миниатюры (64x64). Может вернуть nil, если системный preview не найден.
@@ -639,15 +645,15 @@ final class AssetManagementService {
             return lhsDate > rhsDate
         }
         
-        // Формируем ScreenshotsAsset
+        // Формируем ScreenshotsAsset, теперь с полем title
         let screenshotsAssets = sortedGroups.map { key, assets in
-            let group = assets.map { PhotoAsset(isSelected: false, asset: $0) }
+            let group = assets.map { PhotoAsset(isSelected: true, asset: $0) }
             print("  [AssetManagementService] \(key): \(group.count) screenshots.")
-            return ScreenshotsAsset(description: key, groupAsset: group)
+            return ScreenshotsAsset(title: key, isSelectedAll: false, groupAsset: group)
         }
         return screenshotsAssets
     }
-    
+
     // MARK: - Прочие вспомогательные методы (форматирование дат)
     
     private func formatDateToMonthYear(_ date: Date) -> String {

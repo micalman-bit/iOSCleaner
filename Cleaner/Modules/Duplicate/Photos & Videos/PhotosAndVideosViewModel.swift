@@ -9,11 +9,23 @@ import Photos
 import Combine
 import SwiftUI
 
+enum PhotosAndVideosFromType {
+    case analyzeStorage
+    case photosAndVideos
+}
+struct PhotosAndVideosLeftImageModel {
+    let image: Image
+    let size: CGFloat
+}
+
 struct PhotosAndVideosItemModel: Identifiable {
     let id: UUID = UUID()
     let leftTitle: String
+    let letftImage: PhotosAndVideosLeftImageModel?
     var leftSubtitle: String
-    var rightTitle: String
+    var rightTitle: String?
+    let rightImage: PhotosAndVideosLeftImageModel?
+    var isLoading: Bool = false
     let action: () -> Void
 }
 
@@ -21,10 +33,12 @@ final class PhotosAndVideosViewModel: ObservableObject {
     
     // MARK: - Published Properties
 
-    @Published var listOfItems: [PhotosAndVideosItemModel]
+    @Published var title: String
+    
+    @Published var listOfItems: [PhotosAndVideosItemModel] = []
     @Published var isAnalyzing: Bool = false
     @Published var timerText: String = "0%"
-    @Published var analysisProgress: Double = 0.0   // Значение от 0.0 до 1.0
+    @Published var analysisProgress: Double = 0.0
 
     // MARK: - Private Properties
 
@@ -33,7 +47,9 @@ final class PhotosAndVideosViewModel: ObservableObject {
     
     private let videoManagementService = VideoManagementService.shared
     private var assetService = AssetManagementService.shared
-    
+    private let contactManager = ContactManager.shared
+    private let calendarManager = CalendarManager.shared
+
     private var groupedPhotos: [[PhotoAsset]] = []
     private var groupedScreenshots: [ScreenshotsAsset] = []
     
@@ -54,48 +70,34 @@ final class PhotosAndVideosViewModel: ObservableObject {
     // Таймер для обновления панели фотографий
     private var videoUpdateTimer: Timer?
     private var sceenRecordsUpdateTimer: Timer?
+    
+    private var contactsUpdateTimer: Timer?
+    private var calendarUpdateTimer: Timer?
+    
+    private let screenType: PhotosAndVideosFromType
 
     // MARK: - Init
 
     init(
         service: PhotosAndVideosService,
-        router: PhotosAndVideosRouter
+        router: PhotosAndVideosRouter,
+        screenType: PhotosAndVideosFromType
     ) {
         self.service = service
         self.router = router
+        self.screenType = screenType
         
-        self.listOfItems = [
-            PhotosAndVideosItemModel(
-                leftTitle: "Photos",
-                leftSubtitle: "0",
-                rightTitle: "0 GB",
-                action: { }
-            ),
-            
-            PhotosAndVideosItemModel(
-                leftTitle: "Screenshots",
-                leftSubtitle: "0",
-                rightTitle: "0 GB",
-                action: { }
-            ),
-            
-            PhotosAndVideosItemModel(
-                leftTitle: "Video Duplicates",
-                leftSubtitle: "0",
-                rightTitle: "0 GB",
-                action: { }
-            ),
-            
-            PhotosAndVideosItemModel(
-                leftTitle: "Screen recordings",
-                leftSubtitle: "0",
-                rightTitle: "0 GB",
-                action: { }
-            )
-        ]
+        switch screenType {
+        case .photosAndVideos:
+            title = "Photos & Videos"
+        case .analyzeStorage:
+            title = "Analyze storage"
+        }
+
+        self.listOfItems = self.configureBaseList(screenType)
         
         loadAndAnalyzePhotos()
-        startProgressTimer()
+//        startProgressTimer()
     }
     
     // MARK: - Public Methods
@@ -106,14 +108,60 @@ final class PhotosAndVideosViewModel: ObservableObject {
         screenshotsUpdateTimer?.invalidate()
     }
     
+    func updateContactCounter(_ value: Int) {
+        var letftImage: PhotosAndVideosLeftImageModel = .init(
+            image: Image("circleCheck"),
+            size: 24
+        )
+        
+        let newItem = PhotosAndVideosItemModel(
+            leftTitle: "Contacts Duplicates",
+            letftImage: letftImage,
+            leftSubtitle: String(value),
+            rightTitle: nil,
+            rightImage: .init(
+                image: Image("arrow-right-s-line"),
+                size: 24
+            ),
+            isLoading: false,
+            action: didTapContacts
+        )
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.updateListItem(with: newItem)
+        }
+    }
     
+    func updateCalendarCounter(_ value: Int) {
+        let letftImage: PhotosAndVideosLeftImageModel = .init(
+            image: Image("circleCheck"),
+            size: 24
+        )
+        
+        let newItem = PhotosAndVideosItemModel(
+            leftTitle: "Calendar Events",
+            letftImage: letftImage,
+            leftSubtitle: String(value),
+            rightTitle: nil,
+            rightImage: .init(
+                image: Image("arrow-right-s-line"),
+                size: 24
+            ),
+            isLoading: false,
+            action: didTapCalendar
+        )
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.updateListItem(with: newItem)
+        }
+    }
     
-    func startAnalysis() {
-        isAnalyzing = true
-        analysisProgress = 0.0
-        timerText = "0%"
-        startProgressTimer()
-        loadAndAnalyzePhotos()
+    func didTapContacts() {
+        if UserDefaultsService.isGetContactsAccess {
+            router.openContacts()
+        } else {
+            showSettingsAlert("No access to Contacts. Please enable this in your settings.")
+        }
     }
 
     // MARK: - Photo Analysis
@@ -124,7 +172,6 @@ final class PhotosAndVideosViewModel: ObservableObject {
         updatePhotosPanel()
         analyzeScreenshots()
         
-        // Запускаем таймер обновления "Photos" каждые 7 секунд
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.photosUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true, block: { [weak self] timer in
@@ -144,37 +191,64 @@ final class PhotosAndVideosViewModel: ObservableObject {
         }
     }
     
-    /// Обновляет плашку "Photos" в списке (либо добавляет новый элемент, если его ещё нет)
-    private func updatePhotosPanel() {
+    private func updatePhotosPanel(isByMyself: Bool = false) {
         let status = assetService.getScanStatus()
         let groups = status.groups
         let arrayOfPhotoAssets = groups.map { $0.assets }
         
-        self.groupedPhotos = arrayOfPhotoAssets
-        let allPhotoAssets = arrayOfPhotoAssets.flatMap { $0 }
+        groupedPhotos = arrayOfPhotoAssets
+        
+        var letftImage: PhotosAndVideosLeftImageModel?
+        switch self.screenType {
+        case .photosAndVideos:
+            letftImage = .init(
+                image: Image("folders_line"),
+                size: 40
+            )
+        case .analyzeStorage:
+            letftImage = .init(
+                image: Image("circleCheck"),
+                size: 24
+            )
+        }
+
+        let allPhotoAssets: [PhotoAsset]
+        if isByMyself {
+            allPhotoAssets = groupedPhotos.flatMap { $0 }
+        } else {
+            allPhotoAssets = arrayOfPhotoAssets.flatMap { $0 }
+        }
         
         PhotoVideoManager.shared.calculateStorageUsageForAssets(allPhotoAssets) { [weak self] formattedSize in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 let countString = "\(allPhotoAssets.count)"
                 let newItem = PhotosAndVideosItemModel(
-                    leftTitle: "Photos",
+                    leftTitle: "Similar Photos",
+                    letftImage: letftImage,
                     leftSubtitle: countString,
                     rightTitle: formattedSize,
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: status.isScanning,
                     action: { [weak self] in
                         guard let self = self else { return }
-                        self.openSimilarAsset(photoOrVideo: self.groupedPhotos, type: .photos)
+                        self.openSimilarAsset(
+                            photoOrVideo: self.groupedPhotos,
+                            type: .photos,
+                            backTapAction: { [weak self] photAsset, screenshotAsset in
+                                if let photAsset {
+                                    self?.assetService.duplicatePhotoGroups = photAsset
+                                    self?.groupedPhotos = photAsset.compactMap({ $0.assets })
+                                    self?.updatePhotosPanel(isByMyself: true)
+                                }
+                            }
+                        )
                     }
                 )
                 self.updateListItem(with: newItem)
-//                if let index = self.listOfItems.firstIndex(where: { $0.leftTitle == "Photos" }) {
-//                    // Обновляем существующий элемент, не заменяя его
-//                    self.listOfItems[index].leftSubtitle = countString
-//                    self.listOfItems[index].rightTitle = formattedSize
-//                } else {
-//
-//                    self.listOfItems.append(newItem)
-//                }
             }
         }
     }
@@ -182,11 +256,10 @@ final class PhotosAndVideosViewModel: ObservableObject {
     // MARK: - Screenshots Analysis
 
     private func analyzeScreenshots() {
-        updateScreenshotsPanel { newGroups in
-            self.lastScreenshotsSummary = newGroups.map { ($0.description, $0.groupAsset.count) }
-        }
-        
-        fetchAndAnalyzeVideos()// ?
+//        updateScreenshotsPanel { newGroups in
+//            self.lastScreenshotsSummary = newGroups.map { ($0.title, $0.groupAsset.count) }
+//        }
+        fetchAndAnalyzeVideos()
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -196,12 +269,11 @@ final class PhotosAndVideosViewModel: ObservableObject {
                     return
                 }
                 self.updateScreenshotsPanel { newGroups in
-                    let newSummary = newGroups.map { ($0.description, $0.groupAsset.count) }
+                    let newSummary = newGroups.map { ($0.title, $0.groupAsset.count) }
                     if newSummary.elementsEqual(self.lastScreenshotsSummary, by: { (lhs, rhs) in
                         return lhs.0 == rhs.0 && lhs.1 == rhs.1
                     }) {
                         timer.invalidate()
-//                        self.fetchAndAnalyzeVideos()
                     } else {
                         self.lastScreenshotsSummary = newSummary
                     }
@@ -213,25 +285,52 @@ final class PhotosAndVideosViewModel: ObservableObject {
     /// Обновляет плашку "Screenshots" в списке с расчетом объёма занимаемого места.
     private func updateScreenshotsPanel(completion: (([ScreenshotsAsset]) -> Void)? = nil) {
         assetService.fetchScreenshotsGroupedByMonth { [weak self] screenshots in
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.groupedScreenshots = screenshots
                 let screenshotAssets = screenshots.flatMap { $0.groupAsset }
                 PhotoVideoManager.shared.calculateStorageUsageForAssets(screenshotAssets) { formattedSize in
-                    DispatchQueue.main.async { [weak self] in
+                        
+                        var letftImage: PhotosAndVideosLeftImageModel?
+                        switch self.screenType {
+                        case .photosAndVideos:
+                            letftImage = .init(
+                                image: Image("file_image"),
+                                size: 40
+                            )
+                        case .analyzeStorage:
+                            letftImage = .init(
+                                image: Image("circleCheck"),
+                                size: 24
+                            )
+                        }
+
                         let newItem = PhotosAndVideosItemModel(
                             leftTitle: "Screenshots",
+                            letftImage: letftImage,
                             leftSubtitle: "\(screenshotAssets.count)",
                             rightTitle: formattedSize,
+                            rightImage: .init(
+                                image: Image("arrow-right-s-line"),
+                                size: 24
+                            ),
                             action: { [weak self] in
-                                guard let self = self else { return }
-                                self.openSimilarAsset(screenshotsOrRecording: screenshots, type: .screenshots)
+                                self?.openSimilarAsset(
+                                    screenshotsOrRecording: screenshots,
+                                    type: .screenshots,
+                                    backTapAction: { photAsset, screenshotAsset in
+                                        if let screenshotAsset {
+                                            self?.assetService.screenshotsAssets = screenshotAsset
+                                            self?.groupedScreenshots = screenshotAsset
+                                            self?.updateScreenshotsPanel()
+                                        }
+                                    }
+                                )
                             }
                         )
                         
-                        self?.updateListItem(with: newItem)
+                        self.updateListItem(with: newItem)
                         completion?(screenshots)
-                    }
                 }
             }
         }
@@ -243,7 +342,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
     /// При каждом обнаружении новой группы дубликатов обновляется плашка "Video Duplicates".
     /// После завершения анализа видео запускается анализ экранных записей.
     private func fetchAndAnalyzeVideos() {
-        updateVideosPanel()
+
         fetchAndAnalyzeSceenRecords()
         
         DispatchQueue.main.async { [weak self] in
@@ -275,14 +374,46 @@ final class PhotosAndVideosViewModel: ObservableObject {
         self.groupedVideo = arrayOfVideoAssets
         let videoAssets = self.groupedVideo.flatMap { $0 }
         
-        PhotoVideoManager.shared.calculateStorageUsageForAssets(videoAssets) { formattedSize in
+        PhotoVideoManager.shared.calculateStorageUsageForAssets(videoAssets) { [weak self] formattedSize in
+            guard let self else { return }
+            
+            var letftImage: PhotosAndVideosLeftImageModel?
+            switch self.screenType {
+            case .photosAndVideos:
+                letftImage = .init(
+                    image: Image("phone_camera_line_2"),
+                    size: 40
+                )
+            case .analyzeStorage:
+                letftImage = .init(
+                    image: Image("circleCheck"),
+                    size: 24
+                )
+            }
+
             let newItem = PhotosAndVideosItemModel(
                 leftTitle: "Video Duplicates",
+                letftImage: letftImage,
                 leftSubtitle: "\(videoAssets.count)",
                 rightTitle: formattedSize,
+                rightImage: .init(
+                    image: Image("arrow-right-s-line"),
+                    size: 24
+                ),
+                isLoading: status.isScanning,
                 action: { [weak self] in
                     guard let self = self else { return }
-                    self.openSimilarAsset(photoOrVideo: self.groupedVideo, type: .video)
+                    self.openSimilarAsset(
+                        photoOrVideo: self.groupedVideo,
+                        type: .video,
+                        backTapAction: { [weak self] photAsset, screenshotAsset in
+                            if let photAsset {
+                                self?.videoManagementService.cachedVideoDuplicates = photAsset
+                                self?.groupedVideo = photAsset.map { $0.assets }
+                                self?.updateVideosPanel()
+                            }
+                        }
+                    )
                 }
             )
             
@@ -321,23 +452,184 @@ final class PhotosAndVideosViewModel: ObservableObject {
         let groups = status.groups
         let arrayOfScreenRecordingsAssets = groups.map { $0 }
         
+        if screenType == .analyzeStorage {
+            fetchAndAnalyzeContacts()
+        }
+        
         self.groupedScreenRecords = arrayOfScreenRecordingsAssets
         let groupedScreenAssets = self.groupedScreenRecords.flatMap { $0.groupAsset }
         
-        PhotoVideoManager.shared.calculateStorageUsageForAssets(groupedScreenAssets) { formattedSize in
+        PhotoVideoManager.shared.calculateStorageUsageForAssets(groupedScreenAssets) { [weak self] formattedSize in
+            guard let self else { return }
+            
+            var letftImage: PhotosAndVideosLeftImageModel?
+            switch self.screenType {
+            case .photosAndVideos:
+                letftImage = .init(
+                    image: Image("phone_camera_line_1"),
+                    size: 40
+                )
+            case .analyzeStorage:
+                letftImage = .init(
+                    image: Image("circleCheck"),
+                    size: 24
+                )
+            }
+
             let newItem = PhotosAndVideosItemModel(
                 leftTitle: "Screen recordings",
+                letftImage: letftImage,
                 leftSubtitle: "\(groupedScreenAssets.count)",
                 rightTitle: formattedSize,
+                rightImage: .init(
+                    image: Image("arrow-right-s-line"),
+                    size: 24
+                ),
+                isLoading: status.isScanning,
                 action: { [weak self] in
                     guard let self = self else { return }
-                    self.openSimilarAsset(photoOrVideo: self.groupedVideo, type: .screenRecords)
+                    self.openSimilarAsset(
+                        photoOrVideo: self.groupedVideo,
+                        type: .screenRecords,
+                        backTapAction: { [weak self] photAsset, screenshotAsset in
+                            if let screenshotAsset {
+                                self?.videoManagementService.cachedScreenRecordings = screenshotAsset
+                                self?.groupedScreenRecords = screenshotAsset
+                                self?.updateSceenRecordsPanel()
+                            }
+                        }
+                    )
                 }
             )
             
             DispatchQueue.main.async { [weak self] in
                 self?.updateListItem(with: newItem)
             }
+        }
+    }
+
+    // MARK: - Contacts
+    
+    private func fetchAndAnalyzeContacts() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.contactsUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true, block: { [weak self] timer in
+                guard let self = self else {
+                    timer.invalidate()
+                    return
+                }
+                let status = contactManager.getDuplicateSearchStatus()
+                
+                self.updateContactsPanel()
+                
+                if !status.isScanning {
+                    self.updateContactsPanel()
+                    timer.invalidate()
+                }
+            })
+        }
+    }
+    
+    private func updateContactsPanel() {
+        let status = contactManager.getDuplicateSearchStatus()
+        let groups = status.duplicateGroups
+        
+        fetchAndAnalyzeCalendar()
+        
+        var letftImage: PhotosAndVideosLeftImageModel?
+        switch self.screenType {
+        case .photosAndVideos:
+            letftImage = .init(
+                image: Image("phone_camera_line_1"),
+                size: 40
+            )
+        case .analyzeStorage:
+            letftImage = .init(
+                image: Image("circleCheck"),
+                size: 24
+            )
+        }
+        
+        let newItem = PhotosAndVideosItemModel(
+            leftTitle: "Contacts Duplicates",
+            letftImage: letftImage,
+            leftSubtitle: "\(groups.count)",
+            rightTitle: nil,
+            rightImage: .init(
+                image: Image("arrow-right-s-line"),
+                size: 24
+            ),
+            isLoading: status.isScanning,
+            action: didTapContacts
+        )
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.updateListItem(with: newItem)
+        }
+    }
+
+    
+    // MARK: - Calendar
+
+    private func fetchAndAnalyzeCalendar() {
+        guard UserDefaultsService.isGetCalendarAccess else {
+            self.updateCalendarPanel(eventsGroup: nil, isScaning: false)
+            return
+        }
+        
+        calendarManager.getEventsGroups { [weak self] eventsGroup, isScanning in
+            DispatchQueue.main.async { [weak self] in
+                self?.updateCalendarPanel(eventsGroup: eventsGroup, isScaning: isScanning)
+            }
+            
+            if isScanning {
+                self?.calendarUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true, block: { [weak self] timer in
+                    
+                    self?.fetchAndAnalyzeCalendar()
+                    if isScanning == false {
+                        timer.invalidate()
+                    }
+                })
+            }
+        }
+    }
+    
+    private func updateCalendarPanel(eventsGroup: [EventsGroup]?, isScaning: Bool) {
+        let leftSubtitle: String
+        if let eventsGroup {
+            leftSubtitle = "\(eventsGroup.count)"
+        } else {
+            leftSubtitle = "0"
+        }
+        
+        let letftImage: PhotosAndVideosLeftImageModel = .init(
+            image: Image("circleCheck"),
+            size: 24
+        )
+        
+        let newItem = PhotosAndVideosItemModel(
+            leftTitle: "Calendar Events",
+            letftImage: letftImage,
+            leftSubtitle: leftSubtitle,
+            rightTitle: nil,
+            rightImage: .init(
+                image: Image("arrow-right-s-line"),
+                size: 24
+            ),
+            isLoading: isScaning,
+            action: didTapCalendar
+        )
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.updateListItem(with: newItem)
+        }
+    }
+
+    func didTapCalendar() {
+        if UserDefaultsService.isGetCalendarAccess {
+            router.openCalendar()
+        } else {
+            showSettingsAlert("No access to Contacts. Please enable this in your settings.")
         }
     }
 
@@ -379,12 +671,14 @@ final class PhotosAndVideosViewModel: ObservableObject {
     private func openSimilarAsset(
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
-        type: SimilarAssetType
+        type: SimilarAssetType,
+        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void
     ) {
         router.openSimilarAsset(
             photoOrVideo: photoOrVideo,
             screenshotsOrRecording: screenshotsOrRecording,
-            type: type
+            type: type,
+            backTapAction: backTapAction
         )
     }
     
@@ -394,7 +688,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
         // Сброс значений
         self.analysisProgress = 0.0
         self.timerText = "0%"
-        self.isAnalyzing = true
+        self.isAnalyzing = false
 
         progressTimer?.invalidate()
         progressTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
@@ -426,4 +720,192 @@ final class PhotosAndVideosViewModel: ObservableObject {
             listOfItems.append(newItem)
         }
     }
+    
+    // MARK: - Base List
+    private func configureBaseList(_ screenType: PhotosAndVideosFromType) -> [PhotosAndVideosItemModel] {
+        switch screenType {
+        case .photosAndVideos:
+            return [
+                PhotosAndVideosItemModel(
+                    leftTitle: "Screenshots",
+                    letftImage: .init(
+                        image: Image("file_image"),
+                        size: 40
+                    ),
+                    leftSubtitle: "0",
+                    rightTitle: "0 GB",
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: { }
+                ),
+                PhotosAndVideosItemModel(
+                    leftTitle: "Screen recordings",
+                    letftImage: .init(
+                        image: Image("phone_camera_line_1"),
+                        size: 40
+                    ),
+                    leftSubtitle: "0",
+                    rightTitle: "0 GB",
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: { }
+                ),
+                PhotosAndVideosItemModel(
+                    leftTitle: "Similar Photos",
+                    letftImage: .init(
+                        image: Image("folders_line"),
+                        size: 40
+                    ),
+                    leftSubtitle: "0",
+                    rightTitle: "0 GB",
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: { }
+                ),
+                PhotosAndVideosItemModel(
+                    leftTitle: "Video Duplicates",
+                    letftImage: .init(
+                        image: Image("phone_camera_line_2"),
+                        size: 40
+                    ),
+                    leftSubtitle: "0",
+                    rightTitle: "0 GB",
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: { }
+                )
+            ]
+        case .analyzeStorage:
+            return [
+                PhotosAndVideosItemModel(
+                    leftTitle: "Screenshots",
+                    letftImage: .init(
+                        image: Image("circleCheck"),
+                        size: 24
+                    ),
+                    leftSubtitle: "0",
+                    rightTitle: "0 GB",
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: { }
+                ),
+                PhotosAndVideosItemModel(
+                    leftTitle: "Screen recordings",
+                    letftImage: .init(
+                        image: Image("circleCheck"),
+                        size: 24
+                    ),
+                    leftSubtitle: "0",
+                    rightTitle: "0 GB",
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: { }
+                ),
+                PhotosAndVideosItemModel(
+                    leftTitle: "Similar Photos",
+                    letftImage: .init(
+                        image: Image("circleCheck"),
+                        size: 24
+                    ),
+                    leftSubtitle: "0",
+                    rightTitle: "0 GB",
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: { }
+                ),
+                PhotosAndVideosItemModel(
+                    leftTitle: "Video Duplicates",
+                    letftImage: .init(
+                        image: Image("circleCheck"),
+                        size: 24
+                    ),
+                    leftSubtitle: "0",
+                    rightTitle: "0 GB",
+                    rightImage: .init(
+                        image: Image("arrow-right-s-line"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: { }
+                ),
+                PhotosAndVideosItemModel(
+                    leftTitle: "Contacts Duplicates",
+                    letftImage: .init(
+                        image: UserDefaultsService.isGetContactsAccess ? Image("circleCheck") : Image("circleDesable"),
+                        size: 24
+                    ),
+                    leftSubtitle: UserDefaultsService.isGetContactsAccess ? "0" : "Need access, click to allow",
+                    rightTitle: UserDefaultsService.isGetContactsAccess ? "0 GB" : nil,
+                    rightImage: .init(
+                        image: UserDefaultsService.isGetContactsAccess ? Image("arrow-right-s-line") : Image("lock_key"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: didTapContacts
+                ),
+                PhotosAndVideosItemModel(
+                    leftTitle: "Calendar Events",
+                    letftImage: .init(
+                        image: UserDefaultsService.isGetCalendarAccess ? Image("circleCheck") : Image("circleDesable"),
+                        size: 24
+                    ),
+                    leftSubtitle: UserDefaultsService.isGetCalendarAccess ? "0" : "Need access, click to allow",
+                    rightTitle: UserDefaultsService.isGetCalendarAccess ? "0 GB" : nil,
+                    rightImage: .init(
+                        image: UserDefaultsService.isGetCalendarAccess ? Image("arrow-right-s-line") : Image("lock_key"),
+                        size: 24
+                    ),
+                    isLoading: true,
+                    action: didTapCalendar
+                )
+            ]
+        }
+    }
+    
+    // MARK: - Settings Alert
+    func showSettingsAlert(_ message: String) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first?.rootViewController else {
+            return
+        }
+
+        let alert = UIAlertController(
+            title: "Permission Required",
+            message: message,
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "Go to Settings", style: .default) { _ in
+            if let appSettingsURL = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(appSettingsURL, options: [:], completionHandler: nil)
+            }
+        })
+
+        DispatchQueue.main.async {
+            rootViewController.present(alert, animated: true, completion: nil)
+        }
+    }
+
 }

@@ -26,7 +26,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func startViewControllerIfNeeded() {
         guard window == nil else { return }
         window = UIWindow()
-        UserDefaultsService.isPassOnboarding = true// ???
         ApplicationRouter.installStartViewController(into: window)
         window?.makeKeyAndVisible()
     }

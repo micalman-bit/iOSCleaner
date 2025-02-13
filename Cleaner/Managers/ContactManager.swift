@@ -21,6 +21,7 @@ struct ContactDuplicateItem: Identifiable {
 
 struct ContactDuplicateGroup: Identifiable {
     let id = UUID()
+    var isSelect: Bool
     var contacts: [ContactDuplicateItem]
 }
 
@@ -29,7 +30,7 @@ class ContactManager {
 
     private let contactStore = CNContactStore()
     /// Кэш найденных групп дубликатов
-    private var duplicateGroups: [ContactDuplicateGroup] = []
+    var duplicateGroups: [ContactDuplicateGroup] = []
     /// Флаг, указывающий, идет ли поиск
     private var isSearchingDuplicates = false
     
@@ -77,7 +78,8 @@ class ContactManager {
             let fetchRequest = CNContactFetchRequest(keysToFetch: [
                 CNContactGivenNameKey as CNKeyDescriptor,
                 CNContactFamilyNameKey as CNKeyDescriptor,
-                CNContactPhoneNumbersKey as CNKeyDescriptor
+                CNContactPhoneNumbersKey as CNKeyDescriptor,
+                CNContactOrganizationNameKey as CNKeyDescriptor // добавили для организации
             ])
             
             var contacts: [CNContact] = []
@@ -111,13 +113,36 @@ class ContactManager {
             
             // Фильтруем группы, в которых больше одного контакта
             let filteredGroups = phoneNumberToContacts.values.filter { $0.count > 1 }
+            
             let duplicateGroups = filteredGroups.map { group in
-                group.map { contact in
-                    let name = contact.givenName.isEmpty ? "Unknown" : contact.givenName
+                // Преобразуем каждый CNContact в ContactDuplicateItem с логикой определения имени
+                var contactItems = group.map { contact -> ContactDuplicateItem in
+                    let displayName: String
+                    if !contact.givenName.isEmpty {
+                        displayName = contact.givenName
+                    } else if !contact.familyName.isEmpty {
+                        displayName = contact.familyName
+                    } else if !contact.organizationName.isEmpty {
+                        displayName = contact.organizationName
+                    } else {
+                        displayName = "Unknown"
+                    }
+                    
                     let number = contact.phoneNumbers.first?.value.stringValue ?? "No Number"
-                    return ContactDuplicateItem(name: name, number: number, isSelect: true, item: contact)
+                    
+                    return ContactDuplicateItem(
+                        name: displayName,
+                        number: number,
+                        isSelect: true,
+                        item: contact
+                    )
                 }
-            }.map { ContactDuplicateGroup(contacts: $0) }
+                
+                // Сортируем так, чтобы первый элемент был с самым длинным именем
+                contactItems.sort { $0.name.count > $1.name.count }
+                
+                return ContactDuplicateGroup(isSelect: true, contacts: contactItems)
+            }
             
             self.duplicateGroups = duplicateGroups
             self.isSearchingDuplicates = false
@@ -129,7 +154,7 @@ class ContactManager {
             }
         }
     }
-    
+
     /// Возвращает статус поиска дубликатов:
     /// - isScanning: идет ли поиск
     /// - progress: текущий прогресс (0 до 100)

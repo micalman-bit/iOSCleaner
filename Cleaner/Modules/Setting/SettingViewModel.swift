@@ -5,7 +5,7 @@
 //  Created by Andrey Samchenko on 11.12.2024.
 //
 
-import Foundation
+import SwiftUI
 
 // MARK: - SettingItemModel
 
@@ -19,7 +19,8 @@ final class SettingViewModel: ObservableObject {
     
     // MARK: - Published Properties
 
-    @Published var listOfItems: [SettingItemModel]
+    @Published var listOfItems: [SettingItemModel] = []
+    @Published var selectedURL: URL? = nil
 
     // MARK: - Private Properties
 
@@ -40,21 +41,21 @@ final class SettingViewModel: ObservableObject {
                 title: "Restore Purchase",
                 action: {}
             ),
-            SettingItemModel(
-                title: "Send feedback",
-                action: {}
-            ),
-            SettingItemModel(
-                title: "Contact support",
-                action: {}
-            ),
+//            SettingItemModel(
+//                title: "Send feedback",
+//                action: {}
+//            ),
+//            SettingItemModel(
+//                title: "Contact support",
+//                action: {}
+//            ),
             SettingItemModel(
                 title: "Privacy Policy",
-                action: {}
+                action: self.didTapPrivacyPolicy
             ),
             SettingItemModel(
                 title: "Terms of Use",
-                action: {}
+                action: self.didTapTermsOfUse
             ),
         ]
     }
@@ -64,5 +65,17 @@ final class SettingViewModel: ObservableObject {
 
     func dismiss() {
         router.dismiss()
+    }
+    
+    func didTapTermsOfUse() {
+        if let url = URL(string: "https://www.google.com") {
+            selectedURL = url
+        }
+    }
+    
+    func didTapPrivacyPolicy() {
+        if let url = URL(string: "https://www.apple.com") {
+            selectedURL = url
+        }
     }
 }

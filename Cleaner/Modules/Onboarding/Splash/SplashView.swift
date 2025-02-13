@@ -23,12 +23,21 @@ struct SplashView: View {
     
     var body: some View {
         VStack(spacing: .zero) {
-            Image("app_icon")
-                .resizable()
-                .scaledToFill()
-                .frame(width: 110, height: 110)
-                .clipped()
-                .padding(top: 171)
+            
+            VStack(alignment: .center, spacing: 52) {
+                Image("app_icon")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 110, height: 110)
+                    .clipped()
+                    .padding(top: 171)
+                
+                Text("Photo Master Assistant")
+                    .font(.system(size: 32))
+                    .bold()
+                    .frame(maxWidth: 298)
+                    .multilineTextAlignment(.center)
+            }
             
             Spacer(minLength: .zero)
             
@@ -67,5 +76,16 @@ struct SplashView: View {
         viewModel.requestTrackingPermission {
             viewModel.openNextScreen()
         }
+    }
+}
+
+struct SplashView_Previews: PreviewProvider {
+    static var previews: some View {
+        SplashView(
+            viewModel: SplashViewModel(
+//                service: SplashService(),
+                router: SplashRouter()
+            )
+        )
     }
 }

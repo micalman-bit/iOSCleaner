@@ -25,15 +25,23 @@ struct HomeView: View {
         ZStack(alignment: .top) {
             Image("homeBg")
                 .resizable()
-                .scaledToFill()
-                .frame(width: .screenWidth, height: .screenHeight)
+                .scaledToFit()
+                .imageScale(.large)
+                .frame(width: .screenWidth, height: .screenHeight - 150)
                 .clipped()
+                .overlay(
+                    Color.hexToColor(hex: "#C1E3FF").opacity(0.5)
+                        .blendMode(.luminosity)
+                )
+                .contrast(1.1)
+
 
             VStack {
                 makeHeaderView()
                     .padding(top: 50)
                 
                 makeContentView()
+                    .padding(bottom: 20)
                 
                 Spacer(minLength: .zero)
                 
@@ -64,7 +72,9 @@ struct HomeView: View {
                 Text("iOS " + UIDevice.current.systemVersion)
                     .textStyle(.text)
                     .padding(.bottom, 20)
-            }.padding(top: 14)
+            }
+            .padding(top: 14)
+            .asButton(style: .opacity, action: { viewModel.konamiCodeCounter += 1 })
             
             
             
@@ -138,7 +148,7 @@ struct HomeView: View {
                     .frame(width: 24, height: 24)
                     .clipped()
                 
-                Text("SMART CLEAN NOW")
+                Text("SMART ANALYZE")
                     .textStyle(.textBig, textColor: .Typography.textWhite)
                 
             }
@@ -146,7 +156,7 @@ struct HomeView: View {
             .background(Color.blue)
             .cornerRadius(55)
             .padding(top: 20)
-            .asButton(style: .scale(.light), action: viewModel.didTapPhotoAndVideo)
+            .asButton(style: .scale(.light), action: viewModel.didTapSmartAnalize)
         }
         .padding(top: 28)
     }
@@ -169,9 +179,10 @@ struct HomeView: View {
                             Text("Photo & Video")
                                 .textStyle(.h1, textColor: .Typography.textDark)
                             
-                            Text(viewModel.totalFilesCount)
-                                .font(.system(size: 17, weight: .regular))
-                                .foregroundColor(.Typography.textDark)
+                            Spacer(minLength: .zero)
+//                            Text(viewModel.totalFilesCount)
+//                                .font(.system(size: 17, weight: .regular))
+//                                .foregroundColor(.Typography.textDark)
 
                         }.frame(maxWidth: .infinity)
                     case false:

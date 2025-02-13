@@ -9,26 +9,12 @@ import Foundation
 import Photos
 import Vision
 import Combine
+import SwiftUI
 
-//struct PhotoAsset: Identifiable {
-//    let id = UUID()
-//    var isSelected: Bool
-//    let asset: PHAsset
-//}
-final class PhotoAsset: Identifiable {
-    let id = UUID()
-    var isSelected: Bool
-    let asset: PHAsset
-
-    init(isSelected: Bool, asset: PHAsset) {
-        self.isSelected = isSelected
-        self.asset = asset
-    }
-}
-
-struct ScreenshotsAsset {
-    let description: String
-    let groupAsset: [PhotoAsset]
+// Дополнительные enum'ы/сервисы могут быть у вас определены где-то выше
+enum SelectItemsType {
+    case all
+    case group
 }
 
 enum SimilarAssetType {
@@ -38,23 +24,56 @@ enum SimilarAssetType {
     case screenRecords
 }
 
+//// Ваш объект экрана — например, состояния экрана
+//enum ScreenState {
+//    case content
+//    case loading
+//    case allClean
+//}
+
+// PhotoAsset — без изменений
+final class PhotoAsset: Identifiable {
+    let id = UUID()
+    var isSelected: Bool
+    let asset: PHAsset
+    
+    init(isSelected: Bool, asset: PHAsset) {
+        self.isSelected = isSelected
+        self.asset = asset
+    }
+}
+
+struct ScreenshotsAsset: Identifiable {
+    let id = UUID()
+    let title: String
+    var isSelectedAll: Bool = false
+    var groupAsset: [PhotoAsset]
+}
+
+// MARK: - SimilarAssetViewModel
+
 final class SimilarAssetViewModel: ObservableObject {
-
+    
     // MARK: - Published Properties
-
+    
     @Published var title: String
     @Published var totalPhotos: String = "0"
-    @Published var screenState: ScreenState = .loading
-
+    @Published var screenState: ScreenState = .content
+    
     @Published var selectedPhotos: String = "0"
     @Published var selectedSizeInGB: String = "0"
     
-    @Published var groupedPhotos: [[PhotoAsset]] = [] {
+    // Теперь это массив DuplicateAssetGroup, в котором есть поле isSelectedAll
+    @Published var groupedPhotos: [DuplicateAssetGroup] = [] {
         didSet {
-            totalPhotos = "\(groupedPhotos.flatMap { $0 }.count)"
-            selectedPhotos = "\(groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
-            let selectedAssets = groupedPhotos.flatMap { $0 }.filter { $0.isSelected }
-            calculateSelectedSize(for: selectedAssets)
+            // Пересчитываем общее количество
+            totalPhotos = "\(groupedPhotos.flatMap { $0.assets }.count)"
+            // Сколько выбрано
+            let allSelected = groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }
+            selectedPhotos = "\(allSelected.count)"
+            // Считаем размер
+            calculateSelectedSize(for: allSelected)
+            
             // Если анализ ещё идёт и мы получили какие-либо группы – завершаем анализ
             if isAnalyzing && !groupedPhotos.isEmpty {
                 finishAnalysis()
@@ -64,46 +83,51 @@ final class SimilarAssetViewModel: ObservableObject {
     
     @Published var screenshots: [ScreenshotsAsset] = []
     
-    // Процент анализа (0 … 100)
+    @Published var isEnabledButton: Bool = false
+    
     @Published var analysisProgress: Int = 0
     @Published var isAnalyzing: Bool = false
     @Published var timerText: String = "0%"
     
+    @Published var isSeselectAllButtonText: String = "Select All"
+    @Published var isSeselectAllButtonColor: Color = .blue
+    
+    @Published var toggleGroupText: String = "Select All"
+    @Published var toggleGroupTextColor: Color = .blue
+    
     // MARK: - Public Properties
-
+    
     var type: SimilarAssetType
     
     // MARK: - Private Properties
-
+    
     private let service: SimilarAssetService
     private let router: SimilarAssetRouter
+    
     private var assetService = AssetManagementService.shared
     private var videoManagementService = VideoManagementService.shared
-
-    // Таймер для обновления контента "Photos" (для type == .photos)
+    
     private var photosUpdateTimer: Timer?
-    // Таймер для анализа (обновляет analysisProgress и timerText)
     private var analysisTimer: Timer?
-    
     private var videosUpdateTimer: Timer?
-
-    // Для обновления групп скриншотов (если нужно)
-    // (оставляем без изменений для других типов)
-    // …
     
-    // MARK: - Init
-
+    private let backTapAction: ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void
+    
+    // MARK: - Инициализация
+    
     init(
         service: SimilarAssetService,
         router: SimilarAssetRouter,
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
         type: SimilarAssetType,
+        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void,
         assetManagementService: AssetManagementService = AssetManagementService()
     ) {
         self.service = service
         self.router = router
         self.type = type
+        self.backTapAction = backTapAction
         
         switch type {
         case .photos:
@@ -113,100 +137,260 @@ final class SimilarAssetViewModel: ObservableObject {
         case .screenshots:
             title = "Screenshots"
         case .screenRecords:
-            title = "Screen Recordings"
+            title = "Recordings"
         }
         
         switch type {
         case .photos, .video:
-            self.loadAndAnalyzePhotos(photoOrVideo)
+            loadAndAnalyzePhotos(photoOrVideo)
             
         case .screenshots:
             if let screenshotsOrRecording = screenshotsOrRecording {
                 self.screenState = .content
                 self.isAnalyzing = false
                 self.screenshots = screenshotsOrRecording
-                self.groupedPhotos = screenshotsOrRecording.map { $0.groupAsset }
-                totalPhotos = "\(self.groupedPhotos.flatMap { $0 }.count)"
-                selectedPhotos = "\(self.groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
+                
+                self.groupedPhotos = screenshotsOrRecording.map {
+                    let allSelected = $0.groupAsset.allSatisfy { $0.isSelected }
+                    return DuplicateAssetGroup(
+                        isSelectedAll: allSelected,
+                        assets: $0.groupAsset
+                    )
+                }
+                
+                totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
+                selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+                
             } else {
                 self.isAnalyzing = true
                 assetService.fetchScreenshotsGroupedByMonth { [weak self] assets in
-                    guard let self else { return }
+                    guard let self = self else { return }
                     self.screenState = .content
                     self.isAnalyzing = false
                     self.screenshots = assets
-                    self.groupedPhotos = assets.map { $0.groupAsset }
-                    totalPhotos = "\(self.groupedPhotos.flatMap { $0 }.count)"
-                    selectedPhotos = "\(self.groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
+
+                    self.groupedPhotos = assets.map {
+                        let allSelected = $0.groupAsset.allSatisfy { $0.isSelected }
+                        return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0.groupAsset)
+                    }
+                    
+                    self.totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
+                    self.selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
                 }
             }
             
         case .screenRecords:
             let status = videoManagementService.getScreenRecordingsStatus()
-            
             if let screenshotsOrRecording = screenshotsOrRecording, status.isScanning {
                 self.screenState = .content
                 self.isAnalyzing = status.isScanning
                 self.screenshots = screenshotsOrRecording
-                self.groupedPhotos = screenshotsOrRecording.map { $0.groupAsset }
-                totalPhotos = "\(self.groupedPhotos.flatMap { $0 }.count)"
-                selectedPhotos = "\(self.groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
+                
+                self.groupedPhotos = screenshotsOrRecording.map {
+                    let allSelected = $0.groupAsset.allSatisfy { $0.isSelected }
+                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0.groupAsset)
+                }
+                
+                totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
+                selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
             } else {
                 DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in
                     self?.getScreenRecordsGroups()
                 }
             }
-            
         }
         
         startAnalysisTimer()
+        recalculateSelectedSize()
     }
+    
+    // MARK: - Public Methods
 
-    private func getScreenRecordsGroups() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let status = self.videoManagementService.getScreenRecordingsStatus()
-            
-            self.screenState = .content
-            self.isAnalyzing = status.isScanning
-            self.screenshots = status.groups
-            self.groupedPhotos = status.groups.map { $0.groupAsset }
-            totalPhotos = "\(self.groupedPhotos.flatMap { $0 }.count)"
-            selectedPhotos = "\(self.groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
-
-            if !status.isScanning {
-                isAnalyzing = false
-            } else {
-                DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                    self?.getScreenRecordsGroups()
+    func setSelectToItemsByType(
+        itemsType: SelectItemsType,
+        groupAssets: DuplicateAssetGroup? = nil,
+        screenshot: ScreenshotsAsset? = nil
+    ) {
+        switch type {
+        case .photos, .video:
+            switch itemsType {
+            case .group:
+                guard let groupAssets else { return }
+                guard let groupIndex = groupedPhotos.firstIndex(where: {
+                    $0.assets.map(\.id) == groupAssets.assets.map(\.id)
+                }) else {
+                    return
                 }
+                
+                var group = groupedPhotos[groupIndex]
+                
+                // Если сейчас все выбраны – снимаем, иначе выбираем
+                let needSelectAll = !group.assets.allSatisfy { $0.isSelected }
+                
+                let updatedAssets = group.assets.map {
+                    PhotoAsset(isSelected: needSelectAll, asset: $0.asset)
+                }
+                
+                group.assets = updatedAssets
+                group.isSelectedAll = needSelectAll
+                groupedPhotos[groupIndex] = group
+                
+                checkStatusForSeselectAll()
+                
+            case .all:
+                // Проверяем, выбраны ли все ассеты во всех группах
+                let allSelected = groupedPhotos
+                    .flatMap { $0.assets }
+                    .allSatisfy { $0.isSelected }
+                
+                let needSelect = !allSelected
+                // Обновляем каждый group
+                groupedPhotos = groupedPhotos.map { oldGroup in
+                    var group = oldGroup
+                    let newAssets = group.assets.map {
+                        PhotoAsset(isSelected: needSelect, asset: $0.asset)
+                    }
+                    group.assets = newAssets
+                    group.isSelectedAll = needSelect
+                    return group
+                }
+                
+                checkStatusForSeselectAll()
+            }
+            
+        case .screenshots, .screenRecords:
+            switch itemsType {
+            case .group:
+                guard let screenshot else { return }
+                guard let groupIndex = screenshots.firstIndex(where: {
+                    $0.groupAsset.map(\.id) == screenshot.groupAsset.map(\.id)
+                }) else {
+                    return
+                }
+                
+                var group = screenshots[groupIndex]
+                
+                let needSelectAll = !group.groupAsset.allSatisfy { $0.isSelected }
+                
+                let updatedAssets = group.groupAsset.map {
+                    PhotoAsset(isSelected: needSelectAll, asset: $0.asset)
+                }
+                
+                group.groupAsset = updatedAssets
+                group.isSelectedAll = needSelectAll
+                screenshots[groupIndex] = group
+                
+                checkStatusForSeselectAll()
+                
+            case .all:
+                // Проверяем, выбраны ли все ассеты во всех группах
+                let allSelected = screenshots
+                    .flatMap { $0.groupAsset }
+                    .allSatisfy { $0.isSelected }
+                
+                let needSelect = !allSelected
+                // Обновляем каждый group
+                screenshots = screenshots.map { oldGroup in
+                    var group = oldGroup
+                    let newAssets = group.groupAsset.map {
+                        PhotoAsset(isSelected: needSelect, asset: $0.asset)
+                    }
+                    group.groupAsset = newAssets
+                    group.isSelectedAll = needSelect
+                    return group
+                }
+                
+                checkStatusForSeselectAll()
             }
 
         }
         
+        recalculateSelectedSize()
     }
-    // MARK: - Public Methods
+    
+    private func checkStatusForSeselectAll() {
+        let allSelected: Bool
+        switch type {
+        case .photos, .video:
+            allSelected = groupedPhotos.flatMap { $0.assets }.allSatisfy { $0.isSelected }
+        case .screenRecords, .screenshots:
+            allSelected = screenshots.flatMap { $0.groupAsset }.allSatisfy { $0.isSelected }
+        }
 
+        if allSelected {
+            isSeselectAllButtonText = "Deselect All"
+            isSeselectAllButtonColor = .gray
+            
+            toggleGroupText = "Deselect All"
+            toggleGroupTextColor = .gray
+        } else {
+            isSeselectAllButtonText = "Select All"
+            isSeselectAllButtonColor = .blue
+            
+            toggleGroupText = "Select All"
+            toggleGroupTextColor = .blue
+        }
+    }
+    
+    func getGridList(
+        assets: DuplicateAssetGroup,
+        screenshot: ScreenshotsAsset
+    ) -> [PhotoAsset] {
+        switch type {
+        case .photos, .video:
+            return assets.assets
+        case .screenRecords, .screenshots:
+            return screenshot.groupAsset
+        }
+    }
+
+    /// Открывает подробный просмотр группы (например, карусель или что-то ещё)
     func openSimilarPhotoPicker(groupInex: Int, selectedItemInex: Int) {
+        let currentGroup = groupedPhotos[groupInex]
+        let selectedItem = currentGroup.assets[selectedItemInex]
+        
         router.openSimilarPhotoPicker(
-            groupedPhotos[groupInex],
-            selectedImage: groupedPhotos[groupInex][selectedItemInex],
-            sucessAction: { [weak self] group in
-                self?.groupedPhotos[groupInex] = group
+            currentGroup.assets,
+            selectedImage: selectedItem,
+            sucessAction: { [weak self] newAssets in
+                guard let self = self else { return }
+                // Обновляем группу
+                var group = self.groupedPhotos[groupInex]
+                group.assets = newAssets
+                // Пересчитываем isSelectedAll
+                group.isSelectedAll = newAssets.allSatisfy { $0.isSelected }
+                
+                self.groupedPhotos[groupInex] = group
+                self.recalculateSelectedSize()
             }
         )
     }
     
     func dismiss() {
+        backTapAction(groupedPhotos, screenshots)
         router.dismiss()
+        
         photosUpdateTimer?.invalidate()
         analysisTimer?.invalidate()
+        videosUpdateTimer?.invalidate()
     }
     
+    /// Удаление выбранных ассетов
     func deletePhoto() {
-        let assetsToDelete = groupedPhotos.flatMap { $0 }
-            .filter { $0.isSelected }
-            .map { $0.asset }
+        let assetsToDelete: [PHAsset]
+        guard isEnabledButton else { return }
+        switch type {
+        case .photos, .video:
+            assetsToDelete = groupedPhotos
+                .flatMap { $0.assets }
+                .filter { $0.isSelected }
+                .map { $0.asset }
+        case .screenshots, .screenRecords:
+            assetsToDelete = screenshots
+                .flatMap { $0.groupAsset }
+                .filter { $0.isSelected }
+                .map { $0.asset }
+        }
         
         guard !assetsToDelete.isEmpty else {
             print("No photos selected for deletion.")
@@ -227,16 +411,140 @@ final class SimilarAssetViewModel: ObservableObject {
         })
     }
     
+    /// Пересчитываем суммарный размер выбранных ассетов (и обновляем UI-кнопки)
     func recalculateSelectedSize() {
-        let selectedAssets = groupedPhotos.flatMap { $0 }.filter { $0.isSelected }
+        let selectedAssets: [PhotoAsset]
+        switch type {
+        case .photos, .video:
+            selectedAssets = groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }
+        case .screenRecords, .screenshots:
+            selectedAssets = screenshots.flatMap { $0.groupAsset }.filter { $0.isSelected }
+        }
         PhotoVideoManager.shared.calculateStorageUsageForAssets(selectedAssets) { [weak self] totalSize in
             DispatchQueue.main.async {
-                self?.selectedSizeInGB = totalSize
+                guard let self = self else { return }
+                self.selectedSizeInGB = totalSize
+                self.isEnabledButton = !selectedAssets.isEmpty
+                
+                // Для кнопки выводим разный текст в зависимости от типа
+                switch self.type {
+                case .photos:
+                    if selectedAssets.isEmpty {
+                        self.selectedPhotos = "DELETE PHOTOS"
+                    } else {
+                        self.selectedPhotos = "DELETE \(selectedAssets.count) PHOTOS"
+                    }
+                case .screenshots:
+                    if selectedAssets.isEmpty {
+                        self.selectedPhotos = "DELETE SCREENSHOTS"
+                    } else {
+                        self.selectedPhotos = "DELETE \(selectedAssets.count) SCREENSHOTS"
+                    }
+                case .video:
+                    if selectedAssets.isEmpty {
+                        self.selectedPhotos = "DELETE VIDEO"
+                    } else {
+                        self.selectedPhotos = "DELETE \(selectedAssets.count) VIDEO"
+                    }
+                case .screenRecords:
+                    if selectedAssets.isEmpty {
+                        self.selectedPhotos = "DELETE RECORDINGS"
+                    } else {
+                        self.selectedPhotos = "DELETE \(selectedAssets.count) VIDEO"
+                    }
+                }
             }
         }
     }
     
-    // MARK: - Private Methods
+    /// Тап по чекбоксу (или другой элемент) в списке, переключающий выбор одного ассета
+    func toggleSelection(for asset: PhotoAsset) {
+        switch type {
+        case .photos, .video:
+            if let groupIndex = groupedPhotos.firstIndex(where: { group in
+                group.assets.contains(where: { $0.id == asset.id })
+            }) {
+                var group = groupedPhotos[groupIndex]
+                var newAssets = group.assets
+                
+                if let assetIndex = newAssets.firstIndex(where: { $0.id == asset.id }) {
+                    newAssets[assetIndex].isSelected.toggle()
+                }
+                // Пересчитываем isSelectedAll
+                let allSelected = newAssets.allSatisfy { $0.isSelected }
+                group.isSelectedAll = allSelected
+                
+                group.assets = newAssets
+                groupedPhotos[groupIndex] = group
+                
+                checkStatusForSeselectAll()
+                recalculateSelectedSize()
+            }
+        case .screenshots, .screenRecords:
+            if let groupIndex = screenshots.firstIndex(where: { group in
+                group.groupAsset.contains(where: { $0.id == asset.id })
+            }) {
+                var group = screenshots[groupIndex]
+                var newAssets = group.groupAsset
+                
+                if let assetIndex = newAssets.firstIndex(where: { $0.id == asset.id }) {
+                    newAssets[assetIndex].isSelected.toggle()
+                }
+                // Пересчитываем isSelectedAll
+                let allSelected = newAssets.allSatisfy { $0.isSelected }
+                group.isSelectedAll = allSelected
+                
+                group.groupAsset = newAssets
+                screenshots[groupIndex] = group
+                
+                checkStatusForSeselectAll()
+                recalculateSelectedSize()
+            }
+        }
+    }
+    
+    // MARK: - Вспомогательные методы (размер, время и т.д.)
+    
+    func getVideoDurationString(_ asset: PHAsset) -> String {
+        guard asset.mediaType == .video else { return "00:00" }
+        
+        let totalSeconds = Int(asset.duration.rounded(.down))
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    func getFormattedFileSize(_ asset: PHAsset) -> String {
+        let resources = PHAssetResource.assetResources(for: asset)
+        let resourceType: PHAssetResourceType = (asset.mediaType == .video) ? .video : .photo
+        
+        guard let resource = resources.first(where: { $0.type == resourceType }) else {
+            return "0 B"
+        }
+        
+        if let fileSize = resource.value(forKey: "fileSize") as? Int64 {
+            return formatByteCount(fileSize)
+        }
+        return "0 B"
+    }
+    
+    private func formatByteCount(_ bytes: Int64) -> String {
+        if bytes >= 1_073_741_824 { // 1 GB
+            let value = Double(bytes) / 1_073_741_824.0
+            return String(format: "%.2f GB", value)
+        } else if bytes >= 1_048_576 { // 1 MB
+            let value = Double(bytes) / 1_048_576.0
+            return String(format: "%.2f MB", value)
+        } else if bytes >= 1024 { // 1 KB
+            let value = Double(bytes) / 1024.0
+            return String(format: "%.2f KB", value)
+        } else {
+            return "\(bytes) B"
+        }
+    }
+    
+    // MARK: - Приватные методы
     
     private func calculateSelectedSize(for assets: [PhotoAsset]) {
         var totalSize: Int64 = 0
@@ -245,46 +553,113 @@ final class SimilarAssetViewModel: ObservableObject {
         for photoAsset in assets {
             dispatchGroup.enter()
             photoAsset.asset.getFileSize { size in
-                if let size = size { totalSize += size }
+                if let size = size {
+                    totalSize += size
+                }
                 dispatchGroup.leave()
             }
         }
         
         dispatchGroup.notify(queue: .main) {
             let selectedSizeGB = Double(totalSize) / (1024 * 1024 * 1024)
-            self.selectedSizeInGB = "\(String(format: "%.2f", selectedSizeGB))"
+            self.selectedSizeInGB = String(format: "%.2f", selectedSizeGB)
         }
     }
     
     private func removeDeletedAssets(from deletedAssets: [PHAsset]) {
-        for groupIndex in groupedPhotos.indices {
-            groupedPhotos[groupIndex].removeAll { photoAsset in
-                deletedAssets.contains { $0.localIdentifier == photoAsset.asset.localIdentifier }
+        let deletedIDs = deletedAssets.map { $0.localIdentifier }
+        print("Удаляются ассеты с идентификаторами: \(deletedIDs)")
+        
+        // Фильтруем каждую группу, удаляя ассеты из массива
+        var newGroups: [DuplicateAssetGroup] = []
+        
+        for oldGroup in groupedPhotos {
+            // Убираем удалённые ассеты
+            let filtered = oldGroup.assets.filter { photoAsset in
+                !deletedAssets.contains { $0.localIdentifier == photoAsset.asset.localIdentifier }
             }
+            // Если эта группа всё ещё имеет смысл
+            if (type == .photos || type == .video) {
+                // Например, оставляем группу, только если >= 2 элементов
+                if filtered.count >= 2 {
+                    // Допустим, заново задаём isSelected у первой и последующих (пример)
+                    // Или оставляем как есть. Здесь на ваше усмотрение.
+                    // Ниже просто оставим, как есть, кроме пересчёта isSelectedAll
+                    let allSelected = filtered.allSatisfy { $0.isSelected }
+                    let newGroup = DuplicateAssetGroup(
+                        isSelectedAll: allSelected,
+                        assets: filtered
+                    )
+                    newGroups.append(newGroup)
+                }
+            } else {
+                // Для скриншотов/записей экрана достаточно не выкидывать пустые
+                if !filtered.isEmpty {
+                    let allSelected = filtered.allSatisfy { $0.isSelected }
+                    let newGroup = DuplicateAssetGroup(
+                        isSelectedAll: allSelected,
+                        assets: filtered
+                    )
+                    newGroups.append(newGroup)
+                }
+            }
+        }
+        
+        groupedPhotos = newGroups
+        
+        // Если это скриншоты или экранные записи – синхронизируем screenshots
+        if type == .screenshots || type == .screenRecords {
+            var newScreens: [ScreenshotsAsset] = []
+            
+            // Например, идём по старому массиву screenshots, сопоставляя с новой группой
+            // (если у вас есть иная логика — реализуйте её)
+            for (index, oldScreen) in screenshots.enumerated() {
+                if index < groupedPhotos.count {
+                    let groupAssets = groupedPhotos[index].assets
+                    if !groupAssets.isEmpty {
+                        newScreens.append(
+                            ScreenshotsAsset(
+                                title: oldScreen.title,
+                                isSelectedAll: oldScreen.isSelectedAll,
+                                groupAsset: groupAssets
+                            )
+                        )
+                    }
+                }
+            }
+            
+            screenshots = newScreens
+        }
+        
+        if groupedPhotos.isEmpty {
+            screenState = .allClean
         }
     }
     
-    // MARK: - Photo Analysis for Type == .photos
-
-    /// Если type == .photos, каждую 7 секунд запрашиваем статус анализа из AssetManagementService.
-    /// Пока isScanning == true – обновляем groupedPhotos и устанавливаем screenState = .loading.
-    /// Как только анализ завершён, таймер останавливается, и screenState становится .content (или .allClean, если нет результатов).
+    // MARK: - Photo/Video Analysis
+    
     private func loadAndAnalyzePhotos(_ photoOrVideo: [[PhotoAsset]]? = nil) {
         switch type {
         case .photos:
-            let status = self.assetService.getScanStatus()
+            let status = assetService.getScanStatus()
             
+            // Если уже есть готовые данные
             if let photoOrVideo = photoOrVideo {
                 self.screenState = .content
-                self.groupedPhotos = photoOrVideo
-                totalPhotos = "\(groupedPhotos.flatMap { $0 }.count)"
-                selectedPhotos = "\(groupedPhotos.flatMap { $0 }.filter { $0.isSelected }.count)"
+                // Преобразуем в [DuplicateAssetGroup]
+                self.groupedPhotos = photoOrVideo.map {
+                    let allSelected = $0.allSatisfy { $0.isSelected }
+                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0)
+                }
+                totalPhotos = "\(groupedPhotos.flatMap { $0.assets }.count)"
+                selectedPhotos = "\(groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
             }
             
+            // Если сканирование ещё идёт
             if status.isScanning {
                 photosUpdateTimer?.invalidate()
                 DispatchQueue.main.async {
-                    self.photosUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true, block: { [weak self] timer in
+                    self.photosUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true) { [weak self] timer in
                         guard let self = self else {
                             timer.invalidate()
                             return
@@ -296,105 +671,123 @@ final class SimilarAssetViewModel: ObservableObject {
                         }
                         
                         if status.isScanning {
-                            // Преобразуем группы (из DuplicateAssetGroup) в [[PhotoAsset]]
-                            let photoGroups = status.groups.map { group in
-                                group.assets.map { PhotoAsset(isSelected: false, asset: $0.asset) }
+                            // Преобразуем новые группы
+                            let newPhotoGroups: [DuplicateAssetGroup] = status.groups.map { group in
+                                let photoAssets = group.assets.map {
+                                    PhotoAsset(isSelected: false, asset: $0.asset)
+                                }
+                                let allSelected = photoAssets.allSatisfy { $0.isSelected }
+                                return DuplicateAssetGroup(isSelectedAll: allSelected, assets: photoAssets)
                             }
-                            self.groupedPhotos = photoGroups
+                            // Мержим, чтобы не потерять isSelected
+                            self.groupedPhotos = self.mergeGroupedPhotos(newGroups: newPhotoGroups)
                             self.screenState = self.groupedPhotos.isEmpty ? .allClean : .content
+                            
                         } else {
-                            // Финальное обновление – остановка таймера и переключение состояния
                             self.updatePhotosPanel()
                             timer.invalidate()
                             self.screenState = self.groupedPhotos.isEmpty ? .allClean : .content
                         }
-                    })
+                    }
                 }
             } else {
+                // Анализ завершён
+                if groupedPhotos.isEmpty {
+                    screenState = .allClean
+                } else {
+                    screenState = .content
+                }
                 self.isAnalyzing = false
             }
+            
         case .video:
             let status = videoManagementService.getVideoDuplicatesStatus()
             
             if let photoOrVideo = photoOrVideo {
                 self.screenState = .content
                 self.isAnalyzing = false
-                self.groupedPhotos = photoOrVideo
-                self.totalPhotos = "\(groupedPhotos.flatMap { $0 }.count)"
+                self.groupedPhotos = photoOrVideo.map {
+                    let allSelected = $0.allSatisfy { $0.isSelected }
+                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0)
+                }
+                self.totalPhotos = "\(groupedPhotos.flatMap { $0.assets }.count)"
             }
             
             if status.isScanning {
                 videosUpdateTimer?.invalidate()
                 DispatchQueue.main.async {
-                    self.videosUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true, block: { [weak self] timer in
+                    self.videosUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true) { [weak self] timer in
                         guard let self = self else {
                             timer.invalidate()
                             return
                         }
-                        // Запрашиваем актуальный статус анализа видео
                         let status = self.videoManagementService.getVideoDuplicatesStatus()
                         
-                        // Если группы получены – можно считать, что анализ постепенно завершается
                         if !status.groups.isEmpty {
                             self.isAnalyzing = false
                         }
                         
                         if status.isScanning {
-                            // Преобразуем полученные группы (например, типа DuplicateAssetGroup) в [[PhotoAsset]]
-                            let videoGroups = status.groups.map { group in
-                                group.assets.map { PhotoAsset(isSelected: false, asset: $0.asset) }
+                            let videoGroups: [DuplicateAssetGroup] = status.groups.map { group in
+                                let assets = group.assets.map {
+                                    PhotoAsset(isSelected: false, asset: $0.asset)
+                                }
+                                let allSelected = assets.allSatisfy { $0.isSelected }
+                                return DuplicateAssetGroup(isSelectedAll: allSelected, assets: assets)
                             }
                             self.groupedPhotos = videoGroups
-//                            self.groupedVideo = videoGroups
                             
-                            // Обновляем общее количество видео (можно использовать тот же totalPhotos, если для UI он универсален)
-                            self.totalPhotos = "\(self.groupedPhotos.flatMap { $0 }.count)"
+                            self.totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
                             self.screenState = self.groupedPhotos.isEmpty ? .allClean : .content
                         } else {
-                            // Когда анализ завершён – делаем финальное обновление и останавливаем таймер
                             self.updateVidoPanel()
                             timer.invalidate()
                             self.screenState = self.groupedPhotos.isEmpty ? .allClean : .content
                         }
-                    })
+                    }
                 }
             } else {
+                if groupedPhotos.isEmpty {
+                    screenState = .allClean
+                } else {
+                    screenState = .content
+                }
                 self.isAnalyzing = false
             }
-
+            
         default:
             break
         }
-        
-        
     }
     
-    /// Обновляет плашку "Photos" на основе текущих данных (например, если статус анализа завершён)
     private func updatePhotosPanel() {
         let status = assetService.getScanStatus()
-        let photoGroups = status.groups.map { group in
-            group.assets.map { PhotoAsset(isSelected: false, asset: $0.asset) }
+        let photoGroups: [DuplicateAssetGroup] = status.groups.map { group in
+            let photoAssets = group.assets.map { PhotoAsset(isSelected: false, asset: $0.asset) }
+            let allSelected = photoAssets.allSatisfy { $0.isSelected }
+            return DuplicateAssetGroup(isSelectedAll: allSelected, assets: photoAssets)
         }
         self.groupedPhotos = photoGroups
     }
-
+    
     private func updateVidoPanel() {
         let status = videoManagementService.getVideoDuplicatesStatus()
-        let photoGroups = status.groups.map { group in
-            group.assets.map { PhotoAsset(isSelected: false, asset: $0.asset) }
+        let photoGroups: [DuplicateAssetGroup] = status.groups.map { group in
+            let assets = group.assets.map { PhotoAsset(isSelected: false, asset: $0.asset) }
+            let allSelected = assets.allSatisfy { $0.isSelected }
+            return DuplicateAssetGroup(isSelectedAll: allSelected, assets: assets)
         }
         self.groupedPhotos = photoGroups
     }
-
-    // MARK: - Analysis Timer (для независимого обновления progress, если требуется)
-
+    
+    // MARK: - Таймер анализа (примерно для визуализации прогресса)
+    
     private func startAnalysisTimer() {
         analysisTimer?.invalidate()
-        analysisTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            // Здесь можно обновлять локальный прогресс, если хотите, например,
-            // увеличивать analysisProgress на некоторое значение и обновлять timerText.
-            // Если же прогресс должен рассчитываться исключительно из AssetManagementService,
-            // этот таймер можно не использовать или использовать для анимации.
+        analysisTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            // Если нужно анимировать локальный прогресс
+            // self?.analysisProgress += 1
+            // self?.timerText = "\(self?.analysisProgress ?? 0)%"
         }
     }
     
@@ -404,7 +797,6 @@ final class SimilarAssetViewModel: ObservableObject {
         timerText = "100%"
         isAnalyzing = false
         
-        // Если нет найденных групп – считаем, что всё чисто
         if groupedPhotos.isEmpty {
             screenState = .allClean
         } else {
@@ -412,20 +804,52 @@ final class SimilarAssetViewModel: ObservableObject {
         }
     }
     
-    /// Объединяет новый список групп с уже существующими данными,
-    /// сохраняя значение isSelected для ассетов, которые уже были в groupedPhotos.
-    private func mergeGroupedPhotos(newGroups: [[PhotoAsset]]) -> [[PhotoAsset]] {
+    /// Объединяем новые группы с имеющимися, чтобы не потерять isSelected
+    private func mergeGroupedPhotos(newGroups: [DuplicateAssetGroup]) -> [DuplicateAssetGroup] {
         return newGroups.map { newGroup in
-            newGroup.map { newAsset in
-                // Ищем в текущих группах элемент с таким же localIdentifier
-                if let oldAsset = groupedPhotos.flatMap({ $0 }).first(where: {
-                    $0.asset.localIdentifier == newAsset.asset.localIdentifier
-                }) {
-                    // Если нашли — используем его состояние isSelected
+            // Для каждого PhotoAsset в этой группе ищем, нет ли такого же (по localIdentifier) в старых
+            let updatedAssets = newGroup.assets.map { newAsset in
+                if let oldAsset = groupedPhotos
+                    .flatMap({ $0.assets })
+                    .first(where: { $0.asset.localIdentifier == newAsset.asset.localIdentifier }) {
+                    
+                    // Сохраняем старое состояние isSelected
                     return PhotoAsset(isSelected: oldAsset.isSelected, asset: newAsset.asset)
                 } else {
-                    // Если не нашли, оставляем текущее значение (либо можно задать дефолтное)
                     return newAsset
+                }
+            }
+            // Пересчитываем isSelectedAll
+            let allSelected = updatedAssets.allSatisfy { $0.isSelected }
+            return DuplicateAssetGroup(isSelectedAll: allSelected, assets: updatedAssets)
+        }
+    }
+    
+    // MARK: - Экранные записи
+    
+    private func getScreenRecordsGroups() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let status = self.videoManagementService.getScreenRecordingsStatus()
+            
+            self.screenState = .content
+            self.isAnalyzing = status.isScanning
+            self.screenshots = status.groups
+            
+            self.groupedPhotos = status.groups.map {
+                let allSelected = $0.groupAsset.allSatisfy { $0.isSelected }
+                return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0.groupAsset)
+            }
+            
+            self.totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
+            self.selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+            
+            if !status.isScanning {
+                self.isAnalyzing = false
+            } else {
+                // Повторяем опрос, если ещё не завершён
+                DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    self?.getScreenRecordsGroups()
                 }
             }
         }

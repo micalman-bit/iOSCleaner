@@ -29,7 +29,7 @@ class CalendarManager {
     static let shared = CalendarManager() // Singleton
     
     private let eventStore = EKEventStore()
-    private var eventsGroups: [EventsGroup] = []
+    var eventsGroups: [EventsGroup] = []
     private var isSearchingEvents = false
     
     private init() {}
@@ -58,14 +58,14 @@ class CalendarManager {
     }
     
     // Фоновый поиск событий и группировка
-    private func searchEventsInBackground() {
+    func searchEventsInBackground() {
         guard !isSearchingEvents else { return }
         isSearchingEvents = true
         
         DispatchQueue.global(qos: .background).async { [weak self] in
             guard let self = self else { return }
 
-            // Пример: ищем события за следующий год (или любой другой нужный вам диапазон)
+            // Пример: ищем события за последний год и на год вперёд
             let oneYearFromNow = Date().addingTimeInterval(365 * 24 * 60 * 60)
             let oneYearAgo = Date().addingTimeInterval(-365 * 24 * 60 * 60)
             
@@ -80,14 +80,35 @@ class CalendarManager {
             let events = self.eventStore.events(matching: predicate)
             
             // Группируем события по месяцу
-            let groupedEvents = self.groupEventsByMonth(events: events)
+            var groupedEvents = self.groupEventsByMonth(events: events)
+            
+            // --- 1. Сортируем группы по убыванию времени (от нынешних к прошлым) ---
+            // Предполагается, что groupEventsByMonth использует monthTitle = "MMMM yyyy"
+            // Например, "February 2025". Нужно преобразовать эту строку в дату, чтобы корректно сравнить.
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "MMMM yyyy"  // должно совпадать с форматом в groupEventsByMonth
+            
+            groupedEvents.sort { group1, group2 in
+                guard let date1 = dateFormatter.date(from: group1.monthTitle),
+                      let date2 = dateFormatter.date(from: group2.monthTitle) else {
+                    // Если какую-то дату не распарсить — ставим её в конец
+                    return false
+                }
+                return date1 > date2
+            }
+            
+            // --- 2. При желании, сортируем события внутри каждой группы ---
+            // (От более новых к более старым)
+            for i in 0..<groupedEvents.count {
+                groupedEvents[i].events.sort { $0.startDate > $1.startDate }
+            }
             
             // Сохраняем результат
             self.eventsGroups = groupedEvents
             self.isSearchingEvents = false
         }
     }
-    
+
     // Группируем события по месяцу и году (например, October 2024)
     private func groupEventsByMonth(events: [EKEvent]) -> [EventsGroup] {
         var dictionary: [String: [EKEvent]] = [:]

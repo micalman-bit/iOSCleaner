@@ -50,6 +50,7 @@ struct ContactsView: View {
             }
             
         }
+        .ignoresSafeArea(.container, edges: .bottom)
     }
     
     // MARK: - Header View
@@ -71,7 +72,7 @@ struct ContactsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .asButton(style: .opacity, action: viewModel.dismiss)
             
-            Text("Calendar")
+            Text("Contacts")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.black)
                 .frame(width: 80, alignment: .center)
@@ -81,8 +82,8 @@ struct ContactsView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
             
             if viewModel.screenState == .content {
-                Text("Seselect All")
-                    .foregroundColor(.blue)
+                Text(viewModel.isEnabledSeselectAll ? "Deselect All" : "Seselect All")
+                    .foregroundColor(viewModel.isEnabledSeselectAll ? .gray : .blue)
                     .frame(width: 90, alignment: .center)
                     .font(.system(size: 15))
                     .asButton(style: .opacity, action: viewModel.setSelectToAllItems)
@@ -106,7 +107,7 @@ struct ContactsView: View {
                 makeTopView()
                 
                 ForEach(viewModel.duplicates) { item in
-                    makeListDuplicatesView(item.contacts)
+                    makeListDuplicatesView(item)
                         .padding(top: 24)
                 }
                 
@@ -117,13 +118,13 @@ struct ContactsView: View {
     
     // MARK: - List Duplicates
     
-    @ViewBuilder private func makeListDuplicatesView(_ duplicates: [ContactDuplicateItem]) -> some View {
+    @ViewBuilder private func makeListDuplicatesView(_ duplicates:  ContactDuplicateGroup) -> some View {
         VStack(alignment: .leading) {
             
             Text("Merged Contact")
                 .textStyle(.h1)
             
-            if let duplicate = duplicates.first {
+            if let duplicate = duplicates.contacts.first {
                 makeContactsItemView(isShowCheck: false, item: duplicate)
             }
             
@@ -133,13 +134,16 @@ struct ContactsView: View {
                 
                 Spacer(minLength: .zero)
                 
-                Text("Deselect All")
-                    .textStyle(.textBold, textColor: .Typography.textLink)
-                    .asButton(style: .opacity, action: { viewModel.setDeselectToItems(duplicates) })
+                Text(duplicates.isSelect ? "Deselect All" : "Seselect All")
+                    .textStyle(
+                        .textBold,
+                        textColor: duplicates.isSelect ? .gray : .Typography.textLink
+                    )
+                    .asButton(style: .opacity, action: { viewModel.setDeselectToItems(duplicates.contacts) })
                 
             }.padding(top: 12)
             
-            ForEach(duplicates.dropFirst()) { item in
+            ForEach(duplicates.contacts.dropFirst()) { item in
                 makeContactsItemView(item: item)
             }
             
@@ -194,15 +198,20 @@ struct ContactsView: View {
         VStack(alignment: .center) {
             Text(viewModel.groupCount)
                 .foregroundColor(.white)
+                .foregroundColor(.white)
                 .font(.system(size: 17, weight: .semibold))
                 .padding(vertical: 20, horizontal: 52)
                 .frame(width: .screenWidth - 20)
                 .background(viewModel.isEnabledButton ? Color.blue : Color.hexToColor(hex: "#A8A8A8"))
                 .cornerRadius(55)
                 .disabled(!viewModel.isEnabledButton)
+                .padding(top: 12)
+            
+            Spacer(minLength: .zero)
         }
         .background(Color.white)
-        .padding(vertical: 12, horizontal: 20)
+//        .padding(vertical: 12, horizontal: 20)
+        .frame(maxWidth: .screenWidth, maxHeight: 118)
         .cornerRadius(24, corners: [.topLeft, .topRight])
         .asButton(style: .scale(.light), action: viewModel.mergeContacts)
 
@@ -284,21 +293,24 @@ struct ContactsView: View {
                 .frame(width: .screenWidth - 20)
                 .background(Color.blue)
                 .cornerRadius(55)
+                .padding(top: 12)
+            
+            Spacer(minLength: .zero)
         }
+        .frame(maxWidth: .screenWidth, maxHeight: 118)
         .background(Color.white)
-        .padding(vertical: 12, horizontal: 20)
         .cornerRadius(24, corners: [.topLeft, .topRight])
         .asButton(style: .scale(.light), action: viewModel.dismiss)
     }
 }
 
-//struct ContactsViewView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        ContactsView(
-//            viewModel: ContactsViewModel(
-//                service: ContactsService(),
-//                router: ContactsRouter()
-//            )
-//        )
-//    }
-//}
+struct ContactsViewView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContactsView(
+            viewModel: ContactsViewModel(
+                service: ContactsService(),
+                router: ContactsRouter()
+            )
+        )
+    }
+}

@@ -35,6 +35,16 @@ struct PhotosAndVideosView: View {
             
             Spacer(minLength: .zero)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .updateCalendarCounter)) { notification in
+            if let counter = notification.userInfo?["counter"] as? Int {
+                viewModel.updateCalendarCounter(counter)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .updateContactCounter)) { notification in
+            if let counter = notification.userInfo?["counter"] as? Int {
+                viewModel.updateContactCounter(counter)
+            }
+        }
     }
     
     @ViewBuilder private func makeHeaderView() -> some View {
@@ -53,7 +63,7 @@ struct PhotosAndVideosView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .asButton(style: .opacity, action: viewModel.dismiss)
             
-            Text("Photos & Videos")
+            Text(viewModel.title)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.black)
                 .frame(width: 140, alignment: .center)
@@ -71,28 +81,41 @@ struct PhotosAndVideosView: View {
             ForEach(viewModel.listOfItems) { item in
                 HStack(spacing: 8) {
                     
-                    Image("circleCheck")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-
+                    if let letftImage = item.letftImage {
+                        letftImage.image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: letftImage.size, height: letftImage.size)
+                    }
+                    
                     VStack(alignment: .leading, spacing: .zero) {
                         Text(item.leftTitle)
                             .textStyle(.h1)
+                            .lineLimit(1)
                         
                         Text(item.leftSubtitle)
-                            .textStyle(.text, textColor: .Typography.textGray)
+                            .textStyle(
+                                .text,
+                                textColor: item.isLoading ? Color.hexToColor(hex: "#1D71FF") : .Typography.textGray
+                            )
                     }.padding(leading: 12)
                     
                     Spacer(minLength: .zero)
                     
-                    Text(item.rightTitle)
-                        .textStyle(.price, textColor: .Typography.textGray)
+                    if let rightTitle = item.rightTitle {
+                        Text(rightTitle)
+                            .textStyle(
+                                .price,
+                                textColor: item.isLoading ? Color.hexToColor(hex: "#1D71FF") : .Typography.textGray
+                            )
+                    }
 
-                    Image("arrow-right-s-line")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
+                    if let rightImage = item.rightImage {
+                        rightImage.image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: rightImage.size, height: rightImage.size)
+                    }
                 }
                 .padding(vertical: 22.5, horizontal: 20)
                 .background(Color.white)
@@ -149,7 +172,7 @@ struct PhotosAndVideosView_Previews: PreviewProvider {
         PhotosAndVideosView(
             viewModel: PhotosAndVideosViewModel(
                 service: PhotosAndVideosService(),
-                router: PhotosAndVideosRouter()
+                router: PhotosAndVideosRouter(), screenType: .analyzeStorage
             )
         )
     }

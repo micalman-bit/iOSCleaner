@@ -32,26 +32,8 @@ struct SimilarAssetView: View {
                 
             case .content:
                 makePhotosListView()
+                makeBottomBar()
                 
-                VStack(spacing: .zero) {
-                    
-                    HStack(spacing: 8) {
-                        Text("DELETE \(viewModel.selectedPhotos) PHOTOS")
-                            .foregroundColor(.white)
-                            .font(.system(size: 17, weight: .semibold))
-
-                        Text("\(viewModel.selectedSizeInGB) GB")
-                    }
-                    .padding(vertical: 20, horizontal: 52)
-                    .background(Color.blue)
-                    .cornerRadius(55)
-                    .asButton(style: .opacity, action: viewModel.deletePhoto)
-                    
-                }
-                .background(Color.white)
-                .padding(vertical: 12, horizontal: 20)
-                .cornerRadius(24, corners: [.topLeft, .topRight])
-
             case .allClean:
                 VStack {
                     Spacer(minLength: .zero)
@@ -68,6 +50,7 @@ struct SimilarAssetView: View {
             Spacer(minLength: .zero)
             
         }
+        .ignoresSafeArea(.container, edges: .bottom)
         .background(Color.hexToColor(hex: "#F4F7FA"))
     }
     
@@ -86,18 +69,31 @@ struct SimilarAssetView: View {
                     .foregroundColor(.blue)
                     .font(.system(size: 17))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: 60)//.frame(maxWidth: 57)
             .asButton(style: .opacity, action: viewModel.dismiss)
+            
+            Spacer(minLength: .zero)
             
             Text(viewModel.title)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.black)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.trailing, 12)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
             
-            Spacer()
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            Spacer(minLength: .zero)
             
-            // Добавить Seselect All
+            if viewModel.screenState == .content {
+                Text(viewModel.isSeselectAllButtonText)
+                    .foregroundColor(viewModel.isSeselectAllButtonColor)
+                    .frame(width: 90, alignment: .center)
+                    .font(.system(size: 15))
+                    .asButton(style: .opacity, action: { viewModel.setSelectToItemsByType(itemsType: .all) })
+                    .frame(maxWidth: 65)
+            } else {
+                Spacer(minLength: .zero)
+                    .frame(maxWidth: 60)
+            }
         }
         .padding(vertical: 13, horizontal: 16)
         .background(Color.white)
@@ -151,7 +147,7 @@ struct SimilarAssetView: View {
                     .padding(.horizontal, 16)
                 
                 makePhotosSections()
-                    .padding(.top, 24)
+                    .padding(.top, 12)
                     .padding(.horizontal, 16)
             }
             .background(Color.hexToColor(hex: "#F4F7FA"))
@@ -161,97 +157,223 @@ struct SimilarAssetView: View {
         }
     }
     
-    @ViewBuilder
-    private func makeTopView() -> some View {
+    // MARK: - Top View
+    
+    @ViewBuilder private func makeTopView() -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(viewModel.title)
                 .font(.system(size: 32, weight: .semibold))
                 .foregroundColor(.Typography.textDark)
-                
+            
             
             Text("\(viewModel.totalPhotos) photos")
                 .textStyle(.price, textColor: .Typography.textGray)
         }
     }
     
-    @ViewBuilder
-    private func makePhotosSections() -> some View {
+    // MARK: - Photos List
+    
+    @ViewBuilder private func makePhotosSections() -> some View {
         switch viewModel.type {
         case .photos, .video:
             ForEach(Array(viewModel.groupedPhotos.enumerated()), id: \.offset) { index, group in
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("\(group.count) similar")
-                        .textStyle(.h2)
-                    
+                    HStack {
+                        Text("\(group.assets.count) similar")
+                            .textStyle(.h2)
+                        
+                        Spacer(minLength: .zero)
+                        
+                        Text(group.isSelectedAll ? "Deselect All" : "Select All")
+                            .font(.system(size: 14))
+                            .foregroundStyle(group.isSelectedAll ? .gray : .blue)
+                            .asButton(style: .opacity, action:  { viewModel.setSelectToItemsByType(itemsType: .group, groupAssets: group) })
+                    }
                     makeLazyVGrid(for: group)
                 }
                 .padding(.top, 24)
             }
-
         case .screenshots, .screenRecords:
-            ForEach(viewModel.screenshots.indices, id: \.self) { index in
+            ForEach(Array(viewModel.screenshots.enumerated()), id: \.1.id) { index, screenshot in
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(viewModel.screenshots[index].description)
-                        .textStyle(.h2)
+                    HStack {
+                        Text(screenshot.title)
+                            .textStyle(.h2)
+                        
+                        Spacer(minLength: .zero)
+                        
+                        // Используем вычисляемое свойство screenshot.isSelectedAll
+                        Text(screenshot.isSelectedAll ? "Deselect All" : "Select All")
+                            .font(.system(size: 14))
+                            .foregroundStyle(screenshot.isSelectedAll ? .gray : .blue)
+                            .asButton(style: .opacity) {
+                                viewModel.setSelectToItemsByType(itemsType: .group, screenshot: screenshot)
+                            }
+                    }
                     
-                    makeLazyVGrid(for: viewModel.groupedPhotos[index])
+                    makeLazyVGrid(for: DuplicateAssetGroup(isSelectedAll: screenshot.isSelectedAll, assets: screenshot.groupAsset))
                 }
                 .padding(.top, 24)
             }
         }
     }
-
-    @ViewBuilder
-    private func makeLazyVGrid(for assets: [PhotoAsset]) -> some View {
+    
+    // MARK: - LazyVGrid
+    
+    @ViewBuilder private func makeLazyVGrid(for assets: DuplicateAssetGroup) -> some View {
         LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2),
-            spacing: 8
+            columns: [
+                GridItem(.fixed(178), spacing: 8),
+                GridItem(.fixed(178), spacing: 8)
+            ],
+            spacing: 12
         ) {
-            ForEach(assets.indices, id: \.self) { index in
-                let asset = assets[index]
-                ZStack(alignment: .bottomTrailing) {
+            ForEach(assets.assets.indices, id: \.self) { index in
+                let asset = assets.assets[index]
+                
+                ZStack(alignment: .center) {
                     PhotoThumbnailView(asset: asset.asset)
-                        .frame(height: 178)
                         .cornerRadius(6)
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 8)
+                        .contentShape(Rectangle())
                         .onTapGesture {
                             handlePhotoTap(asset: asset, assets: assets)
                         }
                     
-                    Image(asset.isSelected ? "circleCheck" : "circleWhite")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                        .clipped()
-                        .padding(.bottom, 14)
-                        .padding(.trailing, 14)
-                        .onTapGesture {
-                            toggleSelection(for: asset, in: assets)
+                    VStack(alignment: .leading) {
+                        if index == 0 && (viewModel.type == .video || viewModel.type == .photos) {
+                            Text("Best")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(vertical: 5, horizontal: 7)
+                                .background(Color.hexToColor(hex: "#1D71FF"))
+                                .cornerRadius(8)
+                                .padding(top: 6, leading: 6)
                         }
-                }
+                        
+                        Spacer(minLength: .zero)
+                        
+                        HStack {
+                            if viewModel.type == .video || viewModel.type == .screenRecords {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(viewModel.getFormattedFileSize(asset.asset))
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                    
+                                    Text(viewModel.getVideoDurationString(asset.asset))
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.white)
+                                }
+                                .padding(vertical: 5, horizontal: 7)
+                                .background(Color.black.opacity(0.6))
+                                .cornerRadius(8)
+                                .padding(bottom: 6, leading: 6)
+                            }
+                            
+                            Spacer(minLength: .zero)
+                            
+                            Image(asset.isSelected ? "circleCheck" : "circleWhite")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 24, height: 24)
+                                .clipped()
+                                .padding(.bottom, 6)
+                                .padding(.trailing, 6)
+                                .onTapGesture {
+                                    viewModel.toggleSelection(for: asset)
+                                }
+                        }
+                    }
+                }.frame(width: 176, height: 178)
             }
         }
     }
 
-    private func toggleSelection(for asset: PhotoAsset, in assets: [PhotoAsset]) {
-        if let groupIndex = viewModel.groupedPhotos.firstIndex(where: { $0.contains(where: { $0.id == asset.id }) }),
-           let assetIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.id == asset.id }) {
-            viewModel.groupedPhotos[groupIndex][assetIndex].isSelected.toggle()
-            viewModel.recalculateSelectedSize()
+    @ViewBuilder private func makeLazyVGrid(for screenshots: ScreenshotsAsset) -> some View {
+        LazyVGrid(
+            columns: [
+                GridItem(.fixed(178), spacing: 8),
+                GridItem(.fixed(178), spacing: 8)
+            ],
+            spacing: 12
+        ) {
+            ForEach(screenshots.groupAsset.indices, id: \.self) { index in
+                let asset = screenshots.groupAsset[index]
+                
+                ZStack(alignment: .center) {
+                    PhotoThumbnailView(asset: asset.asset)
+                        .cornerRadius(6)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            handleScreenshotsTap(asset: asset, assets: screenshots)
+                        }
+                    
+                    VStack(alignment: .leading) {
+                        if index == 0 && (viewModel.type == .video || viewModel.type == .photos) {
+                            Text("Best")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(vertical: 5, horizontal: 7)
+                                .background(Color.hexToColor(hex: "#1D71FF"))
+                                .cornerRadius(8)
+                                .padding(top: 6, leading: 6)
+                        }
+                        
+                        Spacer(minLength: .zero)
+                        
+                        HStack {
+                            if viewModel.type == .video || viewModel.type == .screenRecords {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(viewModel.getFormattedFileSize(asset.asset))
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                    
+                                    Text(viewModel.getVideoDurationString(asset.asset))
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.white)
+                                }
+                                .padding(vertical: 5, horizontal: 7)
+                                .background(Color.black.opacity(0.6))
+                                .cornerRadius(8)
+                                .padding(bottom: 6, leading: 6)
+                            }
+                            
+                            Spacer(minLength: .zero)
+                            
+                            Image(asset.isSelected ? "circleCheck" : "circleWhite")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 24, height: 24)
+                                .clipped()
+                                .padding(.bottom, 6)
+                                .padding(.trailing, 6)
+                                .onTapGesture {
+                                    viewModel.toggleSelection(for: asset)
+                                }
+                        }
+                    }
+                }.frame(width: 176, height: 178)
+            }
         }
     }
-    
 
-    private func handlePhotoTap(asset: PhotoAsset, assets: [PhotoAsset]) {
-        if let groupIndex = viewModel.groupedPhotos.firstIndex(where: { $0.contains(where: { $0.id == asset.id }) }),
-           let assetIndex = viewModel.groupedPhotos[groupIndex].firstIndex(where: { $0.id == asset.id }) {
+    
+    // TODO: - Вынести во viewModel
+    private func handlePhotoTap(asset: PhotoAsset, assets: DuplicateAssetGroup) {
+        if let groupIndex = viewModel.groupedPhotos.compactMap({ $0.assets }).firstIndex(where: { $0.contains(where: { $0.asset == asset.asset }) }),
+           let assetIndex = viewModel.groupedPhotos[groupIndex].assets.firstIndex(where: { $0.id == asset.id }) {
             viewModel.openSimilarPhotoPicker(groupInex: groupIndex, selectedItemInex: assetIndex)
         }
     }
-    
-    // MARK: - All Clean
 
+    private func handleScreenshotsTap(asset: PhotoAsset, assets: ScreenshotsAsset) {
+        if let groupIndex = viewModel.screenshots.compactMap({ $0.groupAsset }).firstIndex(where: { $0.contains(where: { $0.asset == asset.asset }) }),
+           let assetIndex = viewModel.screenshots[groupIndex].groupAsset.firstIndex(where: { $0.id == asset.id }) {
+            viewModel.openSimilarPhotoPicker(groupInex: groupIndex, selectedItemInex: assetIndex)
+        }
+    }
+
+    // MARK: - All Clean
+    
     @ViewBuilder private func makeAllCleanView() -> some View {
         VStack(spacing: 50) {
             Image("allClean")
@@ -259,7 +381,7 @@ struct SimilarAssetView: View {
                 .scaledToFit()
                 .frame(width: 166, height: 177)
                 .foregroundColor(.blue)
-
+            
             VStack(alignment: .center, spacing: 10) {
                 Text("Everything is well-\norganized!")
                     .foregroundColor(.Typography.textDark)
@@ -272,12 +394,41 @@ struct SimilarAssetView: View {
                     .multilineTextAlignment(.center)
             }.frame(width: 316)
             
-
+            
         }
     }
-
+    
+    // MARK: - Bottom Bar
+    
+    @ViewBuilder private func makeBottomBar() -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Text(viewModel.selectedPhotos)
+                    .foregroundColor(.white)
+                    .font(.system(size: 17, weight: .semibold))
+                Text(viewModel.selectedSizeInGB)
+                    .foregroundColor(.white)
+                    .font(.system(size: 17, weight: .semibold))
+            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 52)
+            .frame(width: .screenWidth - 20)
+            .background(viewModel.isEnabledButton ? Color.blue : Color.hexToColor(hex: "#A8A8A8"))
+            .cornerRadius(55)
+            .asButton(style: .opacity, action: viewModel.deletePhoto)
+            .disabled(!viewModel.isEnabledButton)
+            .padding(top: 12)
+            
+            Spacer(minLength: .zero)
+        }
+        .frame(height: 118)
+        .frame(width: .screenWidth)
+        .background(Color.white)
+        .cornerRadius(24, corners: [.topLeft, .topRight])
+    }
+    
     // MARK: - Back Button
-
+    
     @ViewBuilder private func makeBackButtonView() -> some View {
         VStack(alignment: .center) {
             Text("BACK TO HOME")
@@ -287,9 +438,14 @@ struct SimilarAssetView: View {
                 .frame(width: .screenWidth - 20)
                 .background(Color.blue)
                 .cornerRadius(55)
+                .padding(top:12)
+            
+            Spacer(minLength: .zero)
         }
-        .background(Color.white)
+        .frame(maxWidth: .infinity, maxHeight: 118)
+        .cornerRadius(24, corners: [.topLeft, .topRight])
         .padding(vertical: 12, horizontal: 20)
+        .background(Color.white)
         .cornerRadius(24, corners: [.topLeft, .topRight])
         .asButton(style: .scale(.light), action: viewModel.dismiss)
     }
@@ -301,7 +457,8 @@ struct PhotoView_Previews: PreviewProvider {
             viewModel: SimilarAssetViewModel(
                 service: SimilarAssetService(),
                 router: SimilarAssetRouter(),
-                type: .screenshots
+                type: .photos,
+                backTapAction: { _, _ in}
             )
         )
     }

@@ -32,6 +32,9 @@ struct SettingView: View {
             
             Spacer(minLength: .zero)
         }
+        .sheet(item: $viewModel.selectedURL) { url in
+            WebView(url: url)
+        }
     }
     
     @ViewBuilder private func makeHeaderView() -> some View {
@@ -64,8 +67,7 @@ struct SettingView: View {
 
     @ViewBuilder private func makeContentView() -> some View {
         ScrollView(showsIndicators: false) {
-            // TODO: - ЛОГИКА ЕСТЬ ЛИ ПОДПИСКА
-            switch true {
+            switch UserDefaultsService.isHaveSubscribe {
             case true:
                 ZStack {
                     Image("bgPremActive")
@@ -143,6 +145,7 @@ struct SettingView: View {
                 .background(Color.white)
                 .cornerRadius(14)
                 .padding(top: 16)
+                .asButton(style: .scale(.light), action: item.action)
             }.padding(horizontal: 20)
             
             Spacer(minLength: .zero)

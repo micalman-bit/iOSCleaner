@@ -29,7 +29,7 @@ struct SimilarPhotoPickerView: View {
             
             // Оборачиваем AssetContentView в анимированный контейнер
             AssetContentView(photoAsset: viewModel.selectedImage)
-                .id(viewModel.selectedImage.id) // Добавляем этот модификатор
+                .id(viewModel.selectedImage.id)
                 .frame(maxWidth: .screenWidth, maxHeight: .screenWidth * 1.3)
                 .aspectRatio(contentMode: .fit)
                 .transition(.opacity)
@@ -61,7 +61,7 @@ struct SimilarPhotoPickerView: View {
             Spacer()
                 .frame(maxWidth: .infinity, alignment: .trailing)
             
-            // Кнопка выбора (она обновляет isSelected для выбранного элемента)
+            // Кнопка выбора – при нажатии вызываем метод ViewModel для переключения isSelected
             Image(viewModel.selectedImage.isSelected ? "circleCheck" : "circleGray")
                 .resizable()
                 .scaledToFit()
@@ -70,11 +70,7 @@ struct SimilarPhotoPickerView: View {
                 .padding(.vertical, 13)
                 .padding(.trailing, 14)
                 .onTapGesture {
-                    if let index = viewModel.assets.firstIndex(where: { $0.id == viewModel.selectedImage.id }) {
-                        viewModel.assets[index].isSelected.toggle()
-                        // Также обновляем selectedImage, чтобы отразить выбор
-                        viewModel.selectedImage.isSelected = viewModel.assets[index].isSelected
-                    }
+                    viewModel.toggleSelectionForSelectedImage()
                 }
         }
         .padding(vertical: 13, horizontal: 16)
@@ -91,7 +87,6 @@ struct SimilarPhotoPickerView: View {
                 ForEach(viewModel.assets, id: \.id) { asset in
                     Button(action: {
                         if let index = viewModel.assets.firstIndex(where: { $0.id == asset.id }) {
-                            // Обновляем выбранное изображение с анимацией
                             withAnimation(.easeInOut) {
                                 viewModel.selectedImage = viewModel.assets[index]
                             }
@@ -110,6 +105,7 @@ struct SimilarPhotoPickerView: View {
             }
             .padding(vertical: 5)
         }
-        .padding(bottom: 62, horizontal: 5)
+        .padding(.bottom, 62)
+        .padding(.horizontal, 5)
     }
 }

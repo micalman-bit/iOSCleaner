@@ -113,6 +113,8 @@ final class CalendarViewModel: ObservableObject {
             }
             
             self.events.removeAll(where: { $0.events.count <= 0 })
+            self.сalendarManager.eventsGroups = events
+            
             self.updateDuplicateCount()
             
             if self.events.isEmpty {

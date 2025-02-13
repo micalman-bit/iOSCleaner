@@ -12,9 +12,11 @@ final class HomeRouter: DefaultRouter {
 
     weak var parentController: UIViewController?
 
-    func openSimilarPhotos() {
+    func openSimilarPhotos(screenType: PhotosAndVideosFromType) {
         guard let parentController else { return }
-        let viewConreoller = PhotosAndVideosAssembly.openPhotosAndVideos()
+        let viewConreoller = PhotosAndVideosAssembly.openPhotosAndVideos(
+            screenType: screenType
+        )
         push(viewConreoller, on: parentController)
     }
 

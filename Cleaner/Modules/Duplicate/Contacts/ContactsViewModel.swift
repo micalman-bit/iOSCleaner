@@ -28,6 +28,8 @@ final class ContactsViewModel: ObservableObject {
     @Published var duplicates: [ContactDuplicateGroup] = []
     @Published var screenState: ScreenState = .loading
     
+    @Published var isEnabledSeselectAll: Bool = false
+
     // MARK: - Private Properties
 
     private let service: ContactsService
@@ -63,6 +65,16 @@ final class ContactsViewModel: ObservableObject {
                 }
             }
             
+            let allSelected = self.duplicates
+                .flatMap { $0.contacts }
+                .allSatisfy { $0.isSelect }
+            
+            if allSelected {
+                isEnabledSeselectAll = true
+            } else {
+                isEnabledSeselectAll = false
+            }
+
             updateDuplicateCount()
         }
     }
@@ -72,13 +84,24 @@ final class ContactsViewModel: ObservableObject {
             guard let self = self else { return }
             
             for index in self.duplicates.indices {
+                self.duplicates[index].isSelect.toggle()
                 for item in items {
                     if let itemIndex = self.duplicates[index].contacts.firstIndex(where: { $0.id == item.id }) {
-                        self.duplicates[index].contacts[itemIndex].isSelect = false
+                        self.duplicates[index].contacts[itemIndex].isSelect = self.duplicates[index].isSelect//
                     }
                 }
             }
             
+            let allSelected = self.duplicates
+                .flatMap { $0.contacts }
+                .allSatisfy { $0.isSelect }
+            
+            if allSelected {
+                isEnabledSeselectAll = true
+            } else {
+                isEnabledSeselectAll = false
+            }
+
             updateDuplicateCount()
         }
     }
@@ -88,8 +111,10 @@ final class ContactsViewModel: ObservableObject {
             guard let self = self else { return }
             
             for index in self.duplicates.indices {
+                self.duplicates[index].isSelect.toggle()
                 for itemIndex in self.duplicates[index].contacts.indices {
-                    self.duplicates[index].contacts[itemIndex].isSelect = true
+                    self.duplicates[index].contacts[itemIndex].isSelect = self.duplicates[index].isSelect
+                    isEnabledSeselectAll = self.duplicates[index].isSelect
                 }
             }
             
@@ -119,6 +144,14 @@ final class ContactsViewModel: ObservableObject {
 
             self.duplicates.removeAll(where: { $0.contacts.count <= 1 })
             self.updateDuplicateCount()
+            
+            self.contactManager.duplicateGroups = duplicates
+            
+            NotificationCenter.default.post(
+                name: .updateCalendarCounter,
+                object: nil,
+                userInfo: ["counter": duplicates.count]
+            )
 
             if self.duplicates.isEmpty {
                 self.screenState = .allClean
@@ -132,6 +165,7 @@ final class ContactsViewModel: ObservableObject {
         let totalItems = duplicates.reduce(0) { $0 + $1.contacts.count }
         duplicateCount = "\(totalItems) Duplicate"
         
+//        let selecteditexrms
         let selectedGroupsCount = duplicates.filter { group in
             group.contacts.dropFirst().contains(where: { $0.isSelect })
         }.count

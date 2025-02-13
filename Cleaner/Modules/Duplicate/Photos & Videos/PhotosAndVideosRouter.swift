@@ -15,14 +15,28 @@ final class PhotosAndVideosRouter: DefaultRouter {
     func openSimilarAsset(
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
-        type: SimilarAssetType
+        type: SimilarAssetType,
+        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void
     ) {
         guard let parentController else { return }
         let viewConreoller = SimilarAssetAssembly.openSimilarAsset(
             photoOrVideo: photoOrVideo,
             screenshotsOrRecording: screenshotsOrRecording,
-            type: type
+            type: type,
+            backTapAction: backTapAction
         )
+        push(viewConreoller, on: parentController)
+    }
+
+    func openContacts() {
+        guard let parentController else { return }
+        let viewConreoller = ContactsAssembly.openContacts()
+        push(viewConreoller, on: parentController)
+    }
+
+    func openCalendar() {
+        guard let parentController else { return }
+        let viewConreoller = CalendarAssembly.openCalendar()
         push(viewConreoller, on: parentController)
     }
 

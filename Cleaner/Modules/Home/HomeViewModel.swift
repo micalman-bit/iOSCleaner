@@ -9,6 +9,7 @@ import SwiftUI
 import Contacts
 import EventKit
 import UIKit
+import Photos
 
 public enum HomeButtonType {
     case photoVideo
@@ -20,7 +21,7 @@ final class HomeViewModel: ObservableObject {
     
     // MARK: - Published Properties
 
-    @Published var isHaveSubscription = true //UserDefaultsService.isHaveSubscribe
+    @Published var isHaveSubscription = UserDefaultsService.isHaveSubscribe
     
     /// Header
     @Published var totalSpaceGB: Double = 0.0
@@ -28,8 +29,10 @@ final class HomeViewModel: ObservableObject {
     @Published var progress: CGFloat = 0.0
 
     /// Photo and video
-    @Published var isPhonoAndVideoLoaderActive: Bool = false
-    
+    @Published var isPhonoAndVideoLoaderActive: Bool = true
+    @Published var phonoAndVideoGB: Double = 0.0
+    @Published var phonoAndVideoGBText: String = ""
+    @Published var totalFilesCount: String = ""
     @Published var isPhonoAndVideoAvailable: Bool = false {
         didSet {
             if isPhonoAndVideoAvailable {
@@ -37,21 +40,28 @@ final class HomeViewModel: ObservableObject {
             }
         }
     }
-    
-    @Published var phonoAndVideoGB: Double = 0.0
-    @Published var phonoAndVideoGBText: String = ""
-    @Published var totalFilesCount: String = ""
+
     /// Сontacts
-    @Published var isСontactsLoaderActive: Bool = false
+    @Published var isСontactsLoaderActive: Bool = true
     @Published var isСontactsAvailable: Bool
     @Published var contactsCount: Int = 0
     @Published var contactsText: String = ""
     @Published var duplicateContactsCount: Int = 0
 
     /// Calendar
-    @Published var isCalendarLoaderActive: Bool = false
+    @Published var isCalendarLoaderActive: Bool = true
     @Published var isCalendarAvailable: Bool = false
     @Published var сalendarText: String = ""
+
+    @Published var konamiCodeCounter: Int = 0 {
+        didSet {
+            if konamiCodeCounter >= 5 {
+                konamiCodeCounter = 0
+                UserDefaultsService.isHaveSubscribe.toggle()
+                isHaveSubscription.toggle()
+            }
+        }
+    }
 
 
     // MARK: - Private Properties
@@ -64,6 +74,10 @@ final class HomeViewModel: ObservableObject {
     private let calendarManager = CalendarManager.shared
     private var assetService = AssetManagementService.shared
     private let videoManagementService = VideoManagementService.shared
+
+    private var contactsUpdateTimer: Timer?
+    private var calendarUpdateTimer: Timer?
+    private var totalSizeTimer: Timer?
 
     private let contactStore = CNContactStore()
     private let eventStore = EKEventStore()
@@ -80,6 +94,7 @@ final class HomeViewModel: ObservableObject {
         self.isСontactsAvailable = UserDefaultsService.isGetContactsAccess
         self.isCalendarAvailable = UserDefaultsService.isGetCalendarAccess
         
+        calculatePhotoAndVideoStorage()
         requestAccess()
         checkAccess()
     }
@@ -90,6 +105,8 @@ final class HomeViewModel: ObservableObject {
         if contactManager.checkAuthorizationStatus() {
             isСontactsAvailable = true
             UserDefaultsService.isGetContactsAccess = true
+            contactManager.startDuplicateSearch()
+            fetchAndAnalyzeContacts()
         } else {
             isСontactsAvailable = false
             UserDefaultsService.isGetContactsAccess = false
@@ -98,7 +115,10 @@ final class HomeViewModel: ObservableObject {
         if calendarManager.checkAuthorizationStatus() {
             isCalendarAvailable = true
             UserDefaultsService.isGetCalendarAccess = true
+            calendarManager.searchEventsInBackground()
+            fetchAndAnalyzeCalendar()
         } else {
+            isCalendarLoaderActive = false
             isCalendarAvailable = false
             UserDefaultsService.isGetCalendarAccess = false
         }
@@ -106,12 +126,36 @@ final class HomeViewModel: ObservableObject {
     
     func didTapPhotoAndVideo() {
         if photoVideoManager.checkAuthorizationStatus() {
-            router.openSimilarPhotos()
+            router.openSimilarPhotos(screenType: .photosAndVideos)
         } else {
             showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
         }
     }
 
+    func didTapSmartAnalize() {
+        checkAccess()
+        
+        if !isCalendarAvailable {
+            calendarManager.requestCalendarAccess { [weak self] isAvailable in
+                if isAvailable {
+                    self?.calendarManager.searchEventsInBackground()
+                }
+            }
+        } else {
+            calendarManager.searchEventsInBackground()
+        }
+        
+        if !isСontactsAvailable {
+            contactManager.requestContactsAccess { [weak self] isAvailable in
+                self?.contactManager.startDuplicateSearch()
+            }
+        } else {
+            contactManager.startDuplicateSearch()
+        }
+        
+        router.openSimilarPhotos(screenType: .analyzeStorage)
+    }
+    
     func didTapContact() {
         contactManager.requestContactsAccess { [weak self] granted in
             if granted {
@@ -187,11 +231,52 @@ final class HomeViewModel: ObservableObject {
         }
     }
     
+    private func fetchAndAnalyzeContacts() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.contactsUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true, block: { [weak self] timer in
+                guard let self = self else {
+                    timer.invalidate()
+                    return
+                }
+                let status = contactManager.getDuplicateSearchStatus()
+                
+                if !status.isScanning {
+                    contactsText = "\(status.duplicateGroups.count)"
+                    isСontactsLoaderActive = false
+                    timer.invalidate()
+                }
+            })
+        }
+    }
+
+    private func fetchAndAnalyzeCalendar() {
+        calendarManager.getEventsGroups { [weak self] eventsGroup, isSearchingEvents in
+            if isSearchingEvents {
+                self?.isCalendarLoaderActive = true
+                self?.calendarUpdateTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: true, block: { [weak self] timer in
+                    
+                    self?.fetchAndAnalyzeCalendar()
+                    if isSearchingEvents == false {
+                        timer.invalidate()
+                    }
+                })
+
+            } else {
+                self?.isCalendarLoaderActive = false
+                let totalItems = eventsGroup?.reduce(0) { $0 + $1.events.count } ?? 0
+                self?.сalendarText = "\(totalItems)"
+            }
+        }
+    }
+    
+
     private func requestAccess() {
         if photoVideoManager.checkAuthorizationStatus() {
             isPhonoAndVideoAvailable = true
             assetService.requestGalleryAccessAndStartScan()
             videoManagementService.startDuplicateScan()
+            calculateTotalSizeFromServices()
         } else {
             photoVideoManager.requestAuthorization { [weak self] granted in
                 guard let self else { return }
@@ -203,6 +288,58 @@ final class HomeViewModel: ObservableObject {
                     self.isPhonoAndVideoAvailable = false
                     self.showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
                 }
+            }
+        }
+    }
+    
+    private func calculateTotalSizeFromServices() {
+        let photoStatus = assetService.getScanStatus()
+        let videoStatus = videoManagementService.getVideoDuplicatesStatus()
+        let screenRecordStatus = videoManagementService.getScreenRecordingsStatus()
+
+        let isScanning = photoStatus.isScanning || videoStatus.isScanning || screenRecordStatus.isScanning
+
+        assetService.fetchScreenshotsGroupedByMonth { [weak self] screenshotGroups in
+            guard let self = self else { return }
+            
+            let screenshots = screenshotGroups.flatMap { $0.groupAsset }
+            let photos = photoStatus.groups.flatMap { $0.assets }
+            let videos = videoStatus.groups.flatMap { $0.assets }
+            let screenRecords = screenRecordStatus.groups.flatMap { $0.groupAsset }
+            
+            let allAssets = photos + videos + screenshots + screenRecords
+            
+            self.calculateTotalBytes(for: allAssets) { totalBytes in
+                let formattedSize = self.formatSize(totalBytes)
+                if isScanning {
+                    self.phonoAndVideoGBText = "\(formattedSize)"
+                    self.isPhonoAndVideoLoaderActive = false
+                    
+                    self.totalSizeTimer = Timer.scheduledTimer(withTimeInterval: 7.0, repeats: false) { _ in
+                        self.calculateTotalSizeFromServices()
+                    }
+                    
+                } else {
+                    self.phonoAndVideoGBText = "\(formattedSize)"
+                    self.isPhonoAndVideoLoaderActive = false
+                    self.totalSizeTimer?.invalidate()
+                    print("Финальный объём найденных медиа: \(formattedSize)")
+                }
+            }
+        }
+    }
+
+    private func calculateTotalBytes(for assets: [PhotoAsset], completion: @escaping (Int64) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            var totalSize: Int64 = 0
+            for asset in assets {
+                if let resource = PHAssetResource.assetResources(for: asset.asset).first,
+                   let fileSize = resource.value(forKey: "fileSize") as? Int64 {
+                    totalSize += fileSize
+                }
+            }
+            DispatchQueue.main.async {
+                completion(totalSize)
             }
         }
     }
@@ -245,15 +382,7 @@ final class HomeViewModel: ObservableObject {
                         }
                     }
                 }
-
-                self.phonoAndVideoGBText = totalSpaceFormatted
                 self.totalFilesCount = String(format: "%.2f", totalFilesCount)
-                
-                // TODO: Удалить отладочный вывод
-                print("Total Space: \(totalSpaceFormatted)")
-                print("Free Space: \(freeSpaceFormatted)")
-                print("Total Files: \(totalFilesCount)")
-                print("Total Folders: \(totalFoldersCount)")
             }
         } catch {
             print("Error retrieving storage information: \(error.localizedDescription)")
