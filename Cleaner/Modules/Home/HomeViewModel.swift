@@ -59,7 +59,7 @@ final class HomeViewModel: ObservableObject {
                 konamiCodeCounter = 0
                 UserDefaultsService.isHaveSubscribe.toggle()
                 isHaveSubscription.toggle()
-            }
+            } 
         }
     }
 
@@ -93,6 +93,7 @@ final class HomeViewModel: ObservableObject {
         
         self.isСontactsAvailable = UserDefaultsService.isGetContactsAccess
         self.isCalendarAvailable = UserDefaultsService.isGetCalendarAccess
+        
         
         calculatePhotoAndVideoStorage()
         requestAccess()
