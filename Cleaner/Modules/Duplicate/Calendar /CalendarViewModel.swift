@@ -22,7 +22,7 @@ final class CalendarViewModel: ObservableObject {
     @Published var isEnabledButton: Bool = false
     
     @Published var events: [EventsGroup] = []
-    @Published var screenState: ScreenState = .loading
+    @Published var screenState: ScreenState = .content
     
     // MARK: - Private Properties
     

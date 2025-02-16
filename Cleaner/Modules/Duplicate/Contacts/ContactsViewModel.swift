@@ -26,7 +26,7 @@ final class ContactsViewModel: ObservableObject {
     @Published var isEnabledButton: Bool = false
     
     @Published var duplicates: [ContactDuplicateGroup] = []
-    @Published var screenState: ScreenState = .loading
+    @Published var screenState: ScreenState = .content
     
     @Published var isEnabledSeselectAll: Bool = false
 

@@ -35,7 +35,7 @@ final class ApplicationRouter: DefaultRouter {
     /// - Parameter window: Окно приложения
     static func installStartViewController(into window: UIWindow?) {
         guard window != nil else { return }
-        let viewController = SplashAssembly.openSplash()
+        let viewController = ValentineAssembly.openValentine()//SplashAssembly.openSplash()
         let navigationViewController = CleanerNavigationController(rootViewController: viewController)
         navigationViewController.navigationBar.isHidden = true
 

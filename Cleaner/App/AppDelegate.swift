@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import FirebaseCore
 
 // MARK: - AppDelegate
 
@@ -15,7 +16,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-
+        
+        FirebaseApp.configure()
+        
         startViewControllerIfNeeded()
         
         return true

@@ -861,7 +861,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
                         image: UserDefaultsService.isGetContactsAccess ? Image("arrow-right-s-line") : Image("lock_key"),
                         size: 24
                     ),
-                    isLoading: true,
+                    isLoading: UserDefaultsService.isGetContactsAccess ? true : false,
                     action: didTapContacts
                 ),
                 PhotosAndVideosItemModel(
@@ -876,7 +876,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
                         image: UserDefaultsService.isGetCalendarAccess ? Image("arrow-right-s-line") : Image("lock_key"),
                         size: 24
                     ),
-                    isLoading: true,
+                    isLoading: UserDefaultsService.isGetCalendarAccess ? true : false,
                     action: didTapCalendar
                 )
             ]
