@@ -33,7 +33,10 @@ struct OnboardingView: View {
                     OnboardingSlide(
                         index: index,
                         isActive: currentPage == index, // Включение анимации только для текущего слайда
-                        buttonAction: nextSlide
+                        buttonAction: {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            nextSlide()
+                        }
                     ).tag(index)
                 }
             }

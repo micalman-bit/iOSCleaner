@@ -61,26 +61,38 @@ final class VideoManagementService {
         totalVideosCount = 0
         
         // Запускаем анализ дубликатов видео
-        fetchAndAnalyzeVideos(onNewGroupFound: { group in
-            // Обработка промежуточного обновления для видео:
-            // Сохраняем обновлённое состояние в кэш.
-            self.syncQueue.sync {
-                // Обновляем кэш на основе текущего состояния analyzedVideoGroups.
-                let intermediateGroups: [DuplicateAssetGroup] = self.analyzedVideoGroups.map { phGroup in
-                    let photoAssets = phGroup.map { PhotoAsset(isSelected: false, asset: $0) }
+        fetchAndAnalyzeVideos(
+            onNewGroupFound: { group in
+                // Обработка промежуточного обновления для видео:
+                // Сохраняем обновлённое состояние в кэш.
+                self.syncQueue.sync {
+                    // Обновляем кэш на основе текущего состояния analyzedVideoGroups.
+                    let intermediateGroups: [DuplicateAssetGroup] = self.analyzedVideoGroups.map { phGroup in
+                        let photoAssets = phGroup.enumerated().map { index, asset in
+                            // Первый элемент не выбран, остальные – выбраны
+                            PhotoAsset(isSelected: index == 0 ? false : true, asset: asset)
+                        }
+                        return DuplicateAssetGroup(isSelectedAll: false, assets: photoAssets)
+                    }
+                    self.cachedVideoDuplicates = intermediateGroups
+                }
+            },
+            completion: { [weak self] in
+                guard let self = self else { return }
+                
+                // Когда анализ завершается, применяем ту же логику:
+                let groups: [DuplicateAssetGroup] = self.analyzedVideoGroups.map { group in
+                    let photoAssets = group.enumerated().map { index, asset in
+                        // Первый элемент не выбран, остальные – выбраны
+                        PhotoAsset(isSelected: index == 0 ? false : true, asset: asset)
+                    }
                     return DuplicateAssetGroup(isSelectedAll: false, assets: photoAssets)
                 }
-                self.cachedVideoDuplicates = intermediateGroups
+                
+                self.cachedVideoDuplicates = groups
+                print("[startDuplicateScan] Видеоанализ завершён. Найдено \(groups.count) групп.")
             }
-        }, completion: { [weak self] in
-            guard let self = self else { return }
-            let groups: [DuplicateAssetGroup] = self.analyzedVideoGroups.map { group in
-                let photoAssets = group.map { PhotoAsset(isSelected: false, asset: $0) }
-                return DuplicateAssetGroup(isSelectedAll: false, assets: photoAssets)
-            }
-            self.cachedVideoDuplicates = groups
-            print("[startDuplicateScan] Видеоанализ завершён. Найдено \(groups.count) групп.")
-        })
+        )
         
         // Запускаем анализ экранных записей
         startScreenRecordingsAnalysis(onIntermediateUpdate: { groups in
@@ -548,8 +560,8 @@ extension VideoManagementService {
             let recordingsAssets = sortedGroups.map { key, assets in
                 ScreenshotsAsset(
                     title: key,
-                    isSelectedAll: false,
-                    groupAsset: assets.map { PhotoAsset(isSelected: false, asset: $0) }
+                    isSelectedAll: true,
+                    groupAsset: assets.map { PhotoAsset(isSelected: true, asset: $0) }
                 )
             }
             completion(recordingsAssets)

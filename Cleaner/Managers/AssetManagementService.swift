@@ -25,6 +25,9 @@ final class AssetManagementService {
     // MARK: - Singleton
     static let shared = AssetManagementService()
     
+    // TODO: - поправить и вынести в отдельный манагер
+    var listOfItems: [PhotosAndVideosItemModel] = []
+    
     // MARK: - Внутреннее состояние
     
     private var isScanning: Bool = false
@@ -205,6 +208,59 @@ final class AssetManagementService {
         print("[AssetManagementService] processHashBatch done.")
     }
     
+    
+    /// Удаляет переданные ассеты из duplicatePhotoGroups и screenshotsAssets (только из кэша, не из библиотеки)
+    func removeAssetsFromCachedGroups(assetsToDelete: [PHAsset], type: SimilarAssetType) {
+        let idsToDelete = Set(assetsToDelete.map { $0.localIdentifier })
+        switch type {
+        case .photos:
+            // 1. Удаляем из duplicatePhotoGroups
+            //    Проходим по группам в обратном порядке, чтобы безопасно модифицировать массив
+            for i in (0..<duplicatePhotoGroups.count).reversed() {
+                let group = duplicatePhotoGroups[i]
+                
+                // Фильтруем массив PhotoAsset
+                let filteredAssets = group.assets.filter { photoAsset in
+                    !idsToDelete.contains(photoAsset.asset.localIdentifier)
+                }
+                
+                if filteredAssets.isEmpty {
+                    // Если в группе больше не осталось ассетов – удаляем группу целиком
+                    duplicatePhotoGroups.remove(at: i)
+                } else {
+                    // Иначе обновляем список ассетов в группе
+                    duplicatePhotoGroups[i].assets = filteredAssets
+                }
+            }
+        case .screenshots:
+            // 2. Удаляем из screenshotsAssets
+            //    Так как screenshotsAssets у нас защищены через concurrent-очередь, пользуемся barrier
+            screenshotsQueue.async(flags: .barrier) { [weak self] in
+                guard let self = self, var screenshots = self.screenshotsAssets else { return }
+                
+                for i in (0..<screenshots.count).reversed() {
+                    var group = screenshots[i]
+                    // Фильтруем groupAsset
+                    let filteredAssets = group.groupAsset.filter { photoAsset in
+                        !idsToDelete.contains(photoAsset.asset.localIdentifier)
+                    }
+                    
+                    if filteredAssets.isEmpty {
+                        // Если в группе больше не осталось скриншотов – удаляем группу целиком
+                        screenshots.remove(at: i)
+                    } else {
+                        screenshots[i].groupAsset = filteredAssets
+                    }
+                }
+                
+                // Обновляем поле screenshotsAssets (кэш)
+                self.screenshotsAssets = screenshots
+            }
+        default:
+            break
+        }
+    }
+
     // MARK: - Поиск дубликатов (уточняющее сравнение)
     
     private func findDuplicatesWithinHashGroups() {

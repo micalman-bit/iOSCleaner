@@ -18,6 +18,12 @@ final class OnboardingRouter: DefaultRouter {
         push(viewConreoller, on: parentController)
     }
     
+    func openHome() {
+        guard let parentController else { return }
+        let viewConreoller = HomeAssembly.openHome()
+        push(viewConreoller, on: parentController)
+    }
+    
     func dismiss() {
         parentController?.navigationController?.popViewController(animated: true)
     }

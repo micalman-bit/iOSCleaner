@@ -291,10 +291,13 @@ struct SimilarAssetView: View {
     @ViewBuilder private func makeLazyVGrid(for screenshots: ScreenshotsAsset) -> some View {
         LazyVGrid(
             columns: [
-                GridItem(.fixed(178), spacing: 8),
-                GridItem(.fixed(178), spacing: 8)
+                // spacing между первой и второй колонкой
+                GridItem(.fixed(178), spacing: 12, alignment: .leading),
+                // второй GridItem без spacing, т.к. нет третьей колонки
+                GridItem(.fixed(178), spacing: 0, alignment: .leading)
             ],
-            spacing: 12
+            alignment: .leading,  // Колонки будут прижаты к левому краю
+            spacing: 12           // Отступ между строками (вертикальный)
         ) {
             ForEach(screenshots.groupAsset.indices, id: \.self) { index in
                 let asset = screenshots.groupAsset[index]
@@ -354,6 +357,7 @@ struct SimilarAssetView: View {
                 }.frame(width: 176, height: 178)
             }
         }
+        .frame(width: .screenWidth - 30, alignment: .leading)
     }
 
     

@@ -51,5 +51,12 @@ extension UserDefault {
         case isPassOnboarding = "IsPassOnboarding"
         case isGetCalendarAccess = "isGetCalendarAccess"
         case isGetContactsAccess = "isGetContactsAccess"
+        
+        case calendarEventsAssetItemModel = "CalendarEventsAssetItemModel"
+        case contactsDuplicatesAssetItemModel = "ContactsDuplicatesAssetItemModel"
+        case videoDuplicatesAssetItemModel = "VideoDuplicatesAssetItemModel"
+        case similarPhotosAssetItemModel = "SimilarPhotosAssetItemModel"
+        case screenRecordingsAssetItemModel = "ScreenRecordingsAssetItemModel"
+        case screenshotsAssetItemModel = "ScreenshotsAssetItemModel"
     }
 }

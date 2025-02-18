@@ -41,6 +41,7 @@ final class OnboardingViewModel: ObservableObject {
 
     func openPaywall() {
         UserDefaultsService.isPassOnboarding = true
-        router.openPaywall()
+        router.openHome()
+//        router.openPaywall()
     }
 }

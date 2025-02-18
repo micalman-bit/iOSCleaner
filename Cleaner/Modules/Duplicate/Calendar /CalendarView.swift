@@ -118,9 +118,11 @@ struct CalendarView: View {
                         .padding(top: 24)
                 }
                 
-            }.padding(top: 20)
+            }
+            .padding(top: 20, horizontal: 20)
 
         }
+        .frame(width: .screenWidth)
     }
     
     // MARK: - List Duplicates

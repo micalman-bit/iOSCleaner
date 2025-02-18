@@ -150,7 +150,7 @@ final class ContactsViewModel: ObservableObject {
             NotificationCenter.default.post(
                 name: .updateCalendarCounter,
                 object: nil,
-                userInfo: ["counter": duplicates.count]
+                userInfo: ["counter": duplicates.count <= 1 ? 0 : duplicates.count]
             )
 
             if self.duplicates.isEmpty {
@@ -165,13 +165,13 @@ final class ContactsViewModel: ObservableObject {
         let totalItems = duplicates.reduce(0) { $0 + $1.contacts.count }
         duplicateCount = "\(totalItems) Duplicate"
         
-//        let selecteditexrms
-        let selectedGroupsCount = duplicates.filter { group in
-            group.contacts.dropFirst().contains(where: { $0.isSelect })
-        }.count
+        let totalSelectItems = duplicates
+            .flatMap { $0.contacts.dropFirst() }
+            .filter { $0.isSelect }
+            .count
         
-        if selectedGroupsCount > 0 {
-            groupCount = "MERGE \(selectedGroupsCount) CONTACTS"
+        if totalSelectItems > 0 {
+            groupCount = "MERGE \(totalSelectItems) CONTACTS"
             isEnabledButton = true
         } else {
             groupCount = "MERGE CONTACTS"

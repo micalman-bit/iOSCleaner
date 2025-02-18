@@ -76,7 +76,7 @@ struct PaywallView: View {
     
     @ViewBuilder private func makeHeaderView() -> some View {
         VStack(spacing: 6) {
-            Text("FREE UP YOUR")
+            Text("CLEAN UP YOUR")
                 .font(.system(size: 40, weight: .semibold))
 
             Text("STORAGE")
@@ -120,8 +120,6 @@ struct PaywallView: View {
                 .padding(.horizontal, 20)
                 .background(Color.white)
                 .cornerRadius(14)
-                
-                Spacer(minLength: .zero)
             }
 
             // TWO

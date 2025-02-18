@@ -37,7 +37,8 @@ final class SplashViewModel: ObservableObject {
             if UserDefaultsService.isHaveSubscribe {
                 router.openHome()
             } else {
-                router.openPaywall()
+                router.openHome()
+//                router.openPaywal()
             }
         } else {
             router.openOnboarding()

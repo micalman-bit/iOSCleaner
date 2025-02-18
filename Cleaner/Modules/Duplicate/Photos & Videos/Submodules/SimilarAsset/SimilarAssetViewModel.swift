@@ -143,7 +143,7 @@ final class SimilarAssetViewModel: ObservableObject {
         switch type {
         case .photos, .video:
             loadAndAnalyzePhotos(photoOrVideo)
-            
+            recalculateSelectedSize()
         case .screenshots:
             if let screenshotsOrRecording = screenshotsOrRecording {
                 self.screenState = .content
@@ -178,7 +178,7 @@ final class SimilarAssetViewModel: ObservableObject {
                     self.selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
                 }
             }
-            
+            recalculateSelectedSize()
         case .screenRecords:
             let status = videoManagementService.getScreenRecordingsStatus()
             if let screenshotsOrRecording = screenshotsOrRecording, status.isScanning {
@@ -193,6 +193,7 @@ final class SimilarAssetViewModel: ObservableObject {
                 
                 totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
                 selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+                recalculateSelectedSize()
             } else {
                 DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in
                     self?.getScreenRecordsGroups()
@@ -391,12 +392,7 @@ final class SimilarAssetViewModel: ObservableObject {
                 .filter { $0.isSelected }
                 .map { $0.asset }
         }
-        
-        guard !assetsToDelete.isEmpty else {
-            print("No photos selected for deletion.")
-            return
-        }
-        
+                
         PHPhotoLibrary.shared().performChanges({
             PHAssetChangeRequest.deleteAssets(assetsToDelete as NSFastEnumeration)
         }, completionHandler: { success, error in
@@ -404,11 +400,21 @@ final class SimilarAssetViewModel: ObservableObject {
                 if success {
                     print("Selected photos deleted successfully.")
                     self.removeDeletedAssets(from: assetsToDelete)
+                    self.deliteItemFromManager(assetsToDelete: assetsToDelete)
                 } else if let error = error {
                     print("Error deleting photos: \(error.localizedDescription)")
                 }
             }
         })
+    }
+    
+    func deliteItemFromManager(assetsToDelete: [PHAsset]) {
+//        switch type {
+//        case .photos, .screenshots:
+//            assetService.removeAssetsFromCachedGroups(assetsToDelete: assetsToDelete, type: type)
+//        case .video, .screenRecords:
+//            print("")
+//        }
     }
     
     /// Пересчитываем суммарный размер выбранных ассетов (и обновляем UI-кнопки)
@@ -634,6 +640,8 @@ final class SimilarAssetViewModel: ObservableObject {
         if groupedPhotos.isEmpty {
             screenState = .allClean
         }
+        
+        recalculateSelectedSize()
     }
     
     // MARK: - Photo/Video Analysis

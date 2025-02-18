@@ -13,6 +13,16 @@ enum PhotosAndVideosFromType {
     case analyzeStorage
     case photosAndVideos
 }
+
+enum AssetItemType {
+    case screenshots
+    case screenRecordings
+    case similarPhotos
+    case videoDuplicates
+    case contactsDuplicates
+    case calendarEvents
+}
+
 struct PhotosAndVideosLeftImageModel {
     let image: Image
     let size: CGFloat
@@ -21,11 +31,12 @@ struct PhotosAndVideosLeftImageModel {
 struct PhotosAndVideosItemModel: Identifiable {
     let id: UUID = UUID()
     let leftTitle: String
-    let letftImage: PhotosAndVideosLeftImageModel?
+    var letftImage: PhotosAndVideosLeftImageModel?
     var leftSubtitle: String
     var rightTitle: String?
     let rightImage: PhotosAndVideosLeftImageModel?
     var isLoading: Bool = false
+    let type: AssetItemType
     let action: () -> Void
 }
 
@@ -96,14 +107,34 @@ final class PhotosAndVideosViewModel: ObservableObject {
 
         self.listOfItems = self.configureBaseList(screenType)
         
+        if !UserDefaultsService.isGetCalendarAccess {
+            calendarManager.requestCalendarAccess { [weak self] isAvailable in
+                if isAvailable {
+                    self?.calendarManager.searchEventsInBackground()
+                }
+            }
+        } else {
+            calendarManager.searchEventsInBackground()
+        }
+        
+        if !UserDefaultsService.isGetContactsAccess {
+            contactManager.requestContactsAccess { [weak self] isAvailable in
+                if isAvailable {
+                    self?.contactManager.startDuplicateSearch()
+                }
+            }
+        } else {
+            contactManager.startDuplicateSearch()
+        }
+
         loadAndAnalyzePhotos()
-//        startProgressTimer()
     }
     
     // MARK: - Public Methods
     
     func dismiss() {
         router.dismiss()
+        assetService.listOfItems = self.listOfItems
         photosUpdateTimer?.invalidate()
         screenshotsUpdateTimer?.invalidate()
     }
@@ -124,6 +155,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
                 size: 24
             ),
             isLoading: false,
+            type: .contactsDuplicates,
             action: didTapContacts
         )
         
@@ -148,6 +180,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
                 size: 24
             ),
             isLoading: false,
+            type: .calendarEvents,
             action: didTapCalendar
         )
         
@@ -233,6 +266,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
                         size: 24
                     ),
                     isLoading: status.isScanning,
+                    type: .similarPhotos,
                     action: { [weak self] in
                         guard let self = self else { return }
                         self.openSimilarAsset(
@@ -314,6 +348,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
                                 image: Image("arrow-right-s-line"),
                                 size: 24
                             ),
+                            type: .screenshots,
                             action: { [weak self] in
                                 self?.openSimilarAsset(
                                     screenshotsOrRecording: screenshots,
@@ -328,9 +363,8 @@ final class PhotosAndVideosViewModel: ObservableObject {
                                 )
                             }
                         )
-                        
-                        self.updateListItem(with: newItem)
-                        completion?(screenshots)
+                    self.updateListItem(with: newItem)
+                    completion?(screenshots)
                 }
             }
         }
@@ -401,6 +435,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
                     size: 24
                 ),
                 isLoading: status.isScanning,
+                type: .videoDuplicates,
                 action: { [weak self] in
                     guard let self = self else { return }
                     self.openSimilarAsset(
@@ -452,7 +487,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
         let groups = status.groups
         let arrayOfScreenRecordingsAssets = groups.map { $0 }
         
-        if screenType == .analyzeStorage {
+        if screenType == .analyzeStorage, UserDefaultsService.isGetContactsAccess {
             fetchAndAnalyzeContacts()
         }
         
@@ -486,6 +521,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
                     size: 24
                 ),
                 isLoading: status.isScanning,
+                type: .screenRecordings,
                 action: { [weak self] in
                     guard let self = self else { return }
                     self.openSimilarAsset(
@@ -531,40 +567,65 @@ final class PhotosAndVideosViewModel: ObservableObject {
     }
     
     private func updateContactsPanel() {
-        let status = contactManager.getDuplicateSearchStatus()
-        let groups = status.duplicateGroups
-        
-        fetchAndAnalyzeCalendar()
-        
-        var letftImage: PhotosAndVideosLeftImageModel?
-        switch self.screenType {
-        case .photosAndVideos:
-            letftImage = .init(
-                image: Image("phone_camera_line_1"),
-                size: 40
+        if UserDefaultsService.isGetContactsAccess {
+            let status = contactManager.getDuplicateSearchStatus()
+            let groups = status.duplicateGroups
+            
+            fetchAndAnalyzeCalendar()
+            
+            var letftImage: PhotosAndVideosLeftImageModel?
+            switch self.screenType {
+            case .photosAndVideos:
+                letftImage = .init(
+                    image: Image("phone_camera_line_1"),
+                    size: 40
+                )
+            case .analyzeStorage:
+                letftImage = .init(
+                    image: Image("circleCheck"),
+                    size: 24
+                )
+            }
+            
+            let newItem = PhotosAndVideosItemModel(
+                leftTitle: "Contacts Duplicates",
+                letftImage: letftImage,
+                leftSubtitle: "\(groups.count)",
+                rightTitle: nil,
+                rightImage: .init(
+                    image: Image("arrow-right-s-line"),
+                    size: 24
+                ),
+                isLoading: status.isScanning,
+                type: .contactsDuplicates,
+                action: didTapContacts
             )
-        case .analyzeStorage:
-            letftImage = .init(
-                image: Image("circleCheck"),
-                size: 24
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.updateListItem(with: newItem)
+            }
+        } else {
+            let newItem = PhotosAndVideosItemModel(
+                leftTitle: "Contacts Duplicates",
+                letftImage: .init(
+                    image: Image("circleDesable"),
+                    size: 24
+                ),
+                leftSubtitle: "Need access, click to allow",
+                rightTitle: nil,
+                rightImage: .init(
+                    image: Image("arrow-right-s-line"),
+                    size: 24
+                ),
+                isLoading: false,
+                type: .contactsDuplicates,
+                action: didTapContacts
             )
-        }
-        
-        let newItem = PhotosAndVideosItemModel(
-            leftTitle: "Contacts Duplicates",
-            letftImage: letftImage,
-            leftSubtitle: "\(groups.count)",
-            rightTitle: nil,
-            rightImage: .init(
-                image: Image("arrow-right-s-line"),
-                size: 24
-            ),
-            isLoading: status.isScanning,
-            action: didTapContacts
-        )
-        
-        DispatchQueue.main.async { [weak self] in
-            self?.updateListItem(with: newItem)
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.updateListItem(with: newItem)
+            }
+
         }
     }
 
@@ -595,33 +656,56 @@ final class PhotosAndVideosViewModel: ObservableObject {
     }
     
     private func updateCalendarPanel(eventsGroup: [EventsGroup]?, isScaning: Bool) {
-        let leftSubtitle: String
-        if let eventsGroup {
-            leftSubtitle = "\(eventsGroup.count)"
-        } else {
-            leftSubtitle = "0"
-        }
-        
-        let letftImage: PhotosAndVideosLeftImageModel = .init(
-            image: Image("circleCheck"),
-            size: 24
-        )
-        
-        let newItem = PhotosAndVideosItemModel(
-            leftTitle: "Calendar Events",
-            letftImage: letftImage,
-            leftSubtitle: leftSubtitle,
-            rightTitle: nil,
-            rightImage: .init(
-                image: Image("arrow-right-s-line"),
+        if UserDefaultsService.isGetCalendarAccess {
+            let leftSubtitle: String
+            if let eventsGroup {
+                leftSubtitle = "\(eventsGroup.count)"
+            } else {
+                leftSubtitle = "0"
+            }
+            
+            let letftImage: PhotosAndVideosLeftImageModel = .init(
+                image: Image("circleCheck"),
                 size: 24
-            ),
-            isLoading: isScaning,
-            action: didTapCalendar
-        )
-        
-        DispatchQueue.main.async { [weak self] in
-            self?.updateListItem(with: newItem)
+            )
+            
+            let newItem = PhotosAndVideosItemModel(
+                leftTitle: "Calendar Events",
+                letftImage: letftImage,
+                leftSubtitle: leftSubtitle,
+                rightTitle: nil,
+                rightImage: .init(
+                    image: Image("arrow-right-s-line"),
+                    size: 24
+                ),
+                isLoading: isScaning,
+                type: .calendarEvents,
+                action: didTapCalendar
+            )
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.updateListItem(with: newItem)
+            }
+        } else {
+            let newItem = PhotosAndVideosItemModel(
+                leftTitle: "Calendar Events",
+                letftImage: .init(
+                    image: Image("circleDesable"),
+                    size: 24
+                ),
+                leftSubtitle: "Need access, click to allow",
+                rightTitle: nil,
+                rightImage: .init(
+                    image: Image("lock_key"),
+                    size: 24
+                ),
+                isLoading: false,
+                type: .calendarEvents,
+                action: didTapCalendar
+            )
+            DispatchQueue.main.async { [weak self] in
+                self?.updateListItem(with: newItem)
+            }
         }
     }
 
@@ -629,7 +713,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
         if UserDefaultsService.isGetCalendarAccess {
             router.openCalendar()
         } else {
-            showSettingsAlert("No access to Contacts. Please enable this in your settings.")
+            showSettingsAlert("No access to Calendar. Please enable this in your settings.")
         }
     }
 
@@ -723,163 +807,251 @@ final class PhotosAndVideosViewModel: ObservableObject {
     
     // MARK: - Base List
     private func configureBaseList(_ screenType: PhotosAndVideosFromType) -> [PhotosAndVideosItemModel] {
-        switch screenType {
-        case .photosAndVideos:
-            return [
-                PhotosAndVideosItemModel(
-                    leftTitle: "Screenshots",
-                    letftImage: .init(
-                        image: Image("file_image"),
-                        size: 40
+        if assetService.listOfItems.isEmpty {
+            switch screenType {
+            case .photosAndVideos:
+                return [
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Screenshots",
+                        letftImage: .init(
+                            image: Image("file_image"),
+                            size: 40
+                        ),
+                        leftSubtitle: "0",
+                        rightTitle: "0 GB",
+                        rightImage: .init(
+                            image: Image("arrow-right-s-line"),
+                            size: 24
+                        ),
+                        isLoading: true,
+                        type: .screenshots,
+                        action: { }
                     ),
-                    leftSubtitle: "0",
-                    rightTitle: "0 GB",
-                    rightImage: .init(
-                        image: Image("arrow-right-s-line"),
-                        size: 24
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Screen recordings",
+                        letftImage: .init(
+                            image: Image("phone_camera_line_1"),
+                            size: 40
+                        ),
+                        leftSubtitle: "0",
+                        rightTitle: "0 GB",
+                        rightImage: .init(
+                            image: Image("arrow-right-s-line"),
+                            size: 24
+                        ),
+                        isLoading: true,
+                        type: .screenRecordings,
+                        action: { }
                     ),
-                    isLoading: true,
-                    action: { }
-                ),
-                PhotosAndVideosItemModel(
-                    leftTitle: "Screen recordings",
-                    letftImage: .init(
-                        image: Image("phone_camera_line_1"),
-                        size: 40
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Similar Photos",
+                        letftImage: .init(
+                            image: Image("folders_line"),
+                            size: 40
+                        ),
+                        leftSubtitle: "0",
+                        rightTitle: "0 GB",
+                        rightImage: .init(
+                            image: Image("arrow-right-s-line"),
+                            size: 24
+                        ),
+                        isLoading: true,
+                        type: .similarPhotos,
+                        action: { }
                     ),
-                    leftSubtitle: "0",
-                    rightTitle: "0 GB",
-                    rightImage: .init(
-                        image: Image("arrow-right-s-line"),
-                        size: 24
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Video Duplicates",
+                        letftImage: .init(
+                            image: Image("phone_camera_line_2"),
+                            size: 40
+                        ),
+                        leftSubtitle: "0",
+                        rightTitle: "0 GB",
+                        rightImage: .init(
+                            image: Image("arrow-right-s-line"),
+                            size: 24
+                        ),
+                        isLoading: true,
+                        type: .videoDuplicates,
+                        action: { }
+                    )
+                ]
+            case .analyzeStorage:
+                return [
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Screenshots",
+                        letftImage: .init(
+                            image: Image("circleCheck"),
+                            size: 24
+                        ),
+                        leftSubtitle: "0",
+                        rightTitle: "0 GB",
+                        rightImage: .init(
+                            image: Image("arrow-right-s-line"),
+                            size: 24
+                        ),
+                        
+                        isLoading: true,
+                        type: .screenshots,
+                        action: { }
                     ),
-                    isLoading: true,
-                    action: { }
-                ),
-                PhotosAndVideosItemModel(
-                    leftTitle: "Similar Photos",
-                    letftImage: .init(
-                        image: Image("folders_line"),
-                        size: 40
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Screen recordings",
+                        letftImage: .init(
+                            image: Image("circleCheck"),
+                            size: 24
+                        ),
+                        leftSubtitle: "0",
+                        rightTitle: "0 GB",
+                        rightImage: .init(
+                            image: Image("arrow-right-s-line"),
+                            size: 24
+                        ),
+                        isLoading: true,
+                        type: .screenRecordings,
+                        action: { }
                     ),
-                    leftSubtitle: "0",
-                    rightTitle: "0 GB",
-                    rightImage: .init(
-                        image: Image("arrow-right-s-line"),
-                        size: 24
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Similar Photos",
+                        letftImage: .init(
+                            image: Image("circleCheck"),
+                            size: 24
+                        ),
+                        leftSubtitle: "0",
+                        rightTitle: "0 GB",
+                        rightImage: .init(
+                            image: Image("arrow-right-s-line"),
+                            size: 24
+                        ),
+                        isLoading: true,
+                        type: .similarPhotos,
+                        action: { }
                     ),
-                    isLoading: true,
-                    action: { }
-                ),
-                PhotosAndVideosItemModel(
-                    leftTitle: "Video Duplicates",
-                    letftImage: .init(
-                        image: Image("phone_camera_line_2"),
-                        size: 40
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Video Duplicates",
+                        letftImage: .init(
+                            image: Image("circleCheck"),
+                            size: 24
+                        ),
+                        leftSubtitle: "0",
+                        rightTitle: "0 GB",
+                        rightImage: .init(
+                            image: Image("arrow-right-s-line"),
+                            size: 24
+                        ),
+                        isLoading: true,
+                        type: .videoDuplicates,
+                        action: { }
                     ),
-                    leftSubtitle: "0",
-                    rightTitle: "0 GB",
-                    rightImage: .init(
-                        image: Image("arrow-right-s-line"),
-                        size: 24
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Contacts Duplicates",
+                        letftImage: .init(
+                            image: UserDefaultsService.isGetContactsAccess ? Image("circleCheck") : Image("circleDesable"),
+                            size: 24
+                        ),
+                        leftSubtitle: UserDefaultsService.isGetContactsAccess ? "0" : "Need access, click to allow",
+                        rightTitle: UserDefaultsService.isGetContactsAccess ? "0 GB" : nil,
+                        rightImage: .init(
+                            image: UserDefaultsService.isGetContactsAccess ? Image("arrow-right-s-line") : Image("lock_key"),
+                            size: 24
+                        ),
+                        isLoading: UserDefaultsService.isGetContactsAccess ? true : false,
+                        type: .contactsDuplicates,
+                        action: didTapContacts
                     ),
-                    isLoading: true,
-                    action: { }
+                    PhotosAndVideosItemModel(
+                        leftTitle: "Calendar Events",
+                        letftImage: .init(
+                            image: UserDefaultsService.isGetCalendarAccess ? Image("circleCheck") : Image("circleDesable"),
+                            size: 24
+                        ),
+                        leftSubtitle: UserDefaultsService.isGetCalendarAccess ? "0" : "Need access, click to allow",
+                        rightTitle: UserDefaultsService.isGetCalendarAccess ? "0 GB" : nil,
+                        rightImage: .init(
+                            image: UserDefaultsService.isGetCalendarAccess ? Image("arrow-right-s-line") : Image("lock_key"),
+                            size: 24
+                        ),
+                        isLoading: UserDefaultsService.isGetCalendarAccess ? true : false,
+                        type: .calendarEvents,
+                        action: didTapCalendar
+                    )
+                ]
+            }
+        } else {
+            var list = assetService.listOfItems.map { item in
+                var newItem = item
+                newItem.letftImage = .init(
+                    image: getItemImageByType(item.type),
+                    size: self.screenType == .analyzeStorage ? 24 : 40
                 )
-            ]
-        case .analyzeStorage:
-            return [
-                PhotosAndVideosItemModel(
-                    leftTitle: "Screenshots",
-                    letftImage: .init(
-                        image: Image("circleCheck"),
-                        size: 24
-                    ),
-                    leftSubtitle: "0",
-                    rightTitle: "0 GB",
-                    rightImage: .init(
-                        image: Image("arrow-right-s-line"),
-                        size: 24
-                    ),
-                    isLoading: true,
-                    action: { }
-                ),
-                PhotosAndVideosItemModel(
-                    leftTitle: "Screen recordings",
-                    letftImage: .init(
-                        image: Image("circleCheck"),
-                        size: 24
-                    ),
-                    leftSubtitle: "0",
-                    rightTitle: "0 GB",
-                    rightImage: .init(
-                        image: Image("arrow-right-s-line"),
-                        size: 24
-                    ),
-                    isLoading: true,
-                    action: { }
-                ),
-                PhotosAndVideosItemModel(
-                    leftTitle: "Similar Photos",
-                    letftImage: .init(
-                        image: Image("circleCheck"),
-                        size: 24
-                    ),
-                    leftSubtitle: "0",
-                    rightTitle: "0 GB",
-                    rightImage: .init(
-                        image: Image("arrow-right-s-line"),
-                        size: 24
-                    ),
-                    isLoading: true,
-                    action: { }
-                ),
-                PhotosAndVideosItemModel(
-                    leftTitle: "Video Duplicates",
-                    letftImage: .init(
-                        image: Image("circleCheck"),
-                        size: 24
-                    ),
-                    leftSubtitle: "0",
-                    rightTitle: "0 GB",
-                    rightImage: .init(
-                        image: Image("arrow-right-s-line"),
-                        size: 24
-                    ),
-                    isLoading: true,
-                    action: { }
-                ),
-                PhotosAndVideosItemModel(
-                    leftTitle: "Contacts Duplicates",
-                    letftImage: .init(
-                        image: UserDefaultsService.isGetContactsAccess ? Image("circleCheck") : Image("circleDesable"),
-                        size: 24
-                    ),
-                    leftSubtitle: UserDefaultsService.isGetContactsAccess ? "0" : "Need access, click to allow",
-                    rightTitle: UserDefaultsService.isGetContactsAccess ? "0 GB" : nil,
-                    rightImage: .init(
-                        image: UserDefaultsService.isGetContactsAccess ? Image("arrow-right-s-line") : Image("lock_key"),
-                        size: 24
-                    ),
-                    isLoading: UserDefaultsService.isGetContactsAccess ? true : false,
-                    action: didTapContacts
-                ),
-                PhotosAndVideosItemModel(
-                    leftTitle: "Calendar Events",
-                    letftImage: .init(
-                        image: UserDefaultsService.isGetCalendarAccess ? Image("circleCheck") : Image("circleDesable"),
-                        size: 24
-                    ),
-                    leftSubtitle: UserDefaultsService.isGetCalendarAccess ? "0" : "Need access, click to allow",
-                    rightTitle: UserDefaultsService.isGetCalendarAccess ? "0 GB" : nil,
-                    rightImage: .init(
-                        image: UserDefaultsService.isGetCalendarAccess ? Image("arrow-right-s-line") : Image("lock_key"),
-                        size: 24
-                    ),
-                    isLoading: UserDefaultsService.isGetCalendarAccess ? true : false,
-                    action: didTapCalendar
-                )
-            ]
+                return newItem
+            }
+            
+            if screenType == .photosAndVideos {
+                list.removeAll(where: { $0.type == .calendarEvents || $0.type == .contactsDuplicates})
+            } else {
+                if !list.contains(where: { $0.type == .contactsDuplicates }) {
+                    list.append(
+                        PhotosAndVideosItemModel(
+                            leftTitle: "Contacts Duplicates",
+                            letftImage: .init(
+                                image: UserDefaultsService.isGetContactsAccess ? Image("circleCheck") : Image("circleDesable"),
+                                size: 24
+                            ),
+                            leftSubtitle: UserDefaultsService.isGetContactsAccess ? "0" : "Need access, click to allow",
+                            rightTitle: UserDefaultsService.isGetContactsAccess ? "0 GB" : nil,
+                            rightImage: .init(
+                                image: UserDefaultsService.isGetContactsAccess ? Image("arrow-right-s-line") : Image("lock_key"),
+                                size: 24
+                            ),
+                            isLoading: UserDefaultsService.isGetContactsAccess ? true : false,
+                            type: .contactsDuplicates,
+                            action: didTapContacts
+                        )
+                    )
+                }
+                if !list.contains(where: { $0.type == .calendarEvents }) {
+                    list.append(
+                        PhotosAndVideosItemModel(
+                            leftTitle: "Calendar Events",
+                            letftImage: .init(
+                                image: UserDefaultsService.isGetCalendarAccess ? Image("circleCheck") : Image("circleDesable"),
+                                size: 24
+                            ),
+                            leftSubtitle: UserDefaultsService.isGetCalendarAccess ? "0" : "Need access, click to allow",
+                            rightTitle: UserDefaultsService.isGetCalendarAccess ? "0 GB" : nil,
+                            rightImage: .init(
+                                image: UserDefaultsService.isGetCalendarAccess ? Image("arrow-right-s-line") : Image("lock_key"),
+                                size: 24
+                            ),
+                            isLoading: UserDefaultsService.isGetCalendarAccess ? true : false,
+                            type: .calendarEvents,
+                            action: didTapCalendar
+                        )
+                    )
+                }
+            }
+
+            return list
+        }
+    }
+    
+    private func getItemImageByType(_ type: AssetItemType) -> Image {
+        if self.screenType == .analyzeStorage {
+            return Image("circleCheck")
+        } else {
+            switch type {
+            case .screenshots:
+                return Image("file_image")
+            case .screenRecordings:
+                return Image("phone_camera_line_1")
+            case .similarPhotos:
+                return Image("folders_line")
+            case .videoDuplicates:
+                return Image("phone_camera_line_2")
+            default:
+                return Image("")
+            }
         }
     }
     
@@ -907,5 +1079,4 @@ final class PhotosAndVideosViewModel: ObservableObject {
             rootViewController.present(alert, animated: true, completion: nil)
         }
     }
-
 }

@@ -94,7 +94,6 @@ final class HomeViewModel: ObservableObject {
         self.isСontactsAvailable = UserDefaultsService.isGetContactsAccess
         self.isCalendarAvailable = UserDefaultsService.isGetCalendarAccess
         
-        
         calculatePhotoAndVideoStorage()
         requestAccess()
         checkAccess()
@@ -109,6 +108,7 @@ final class HomeViewModel: ObservableObject {
             contactManager.startDuplicateSearch()
             fetchAndAnalyzeContacts()
         } else {
+            isСontactsLoaderActive = false
             isСontactsAvailable = false
             UserDefaultsService.isGetContactsAccess = false
         }
@@ -133,27 +133,7 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    func didTapSmartAnalize() {
-        checkAccess()
-        
-        if !isCalendarAvailable {
-            calendarManager.requestCalendarAccess { [weak self] isAvailable in
-                if isAvailable {
-                    self?.calendarManager.searchEventsInBackground()
-                }
-            }
-        } else {
-            calendarManager.searchEventsInBackground()
-        }
-        
-        if !isСontactsAvailable {
-            contactManager.requestContactsAccess { [weak self] isAvailable in
-                self?.contactManager.startDuplicateSearch()
-            }
-        } else {
-            contactManager.startDuplicateSearch()
-        }
-        
+    func didTapSmartAnalize() {        
         router.openSimilarPhotos(screenType: .analyzeStorage)
     }
     
