@@ -11,7 +11,8 @@ struct OnboardingSlide: View {
     let index: Int
     let isActive: Bool
     let buttonAction: () -> Void
-    
+    @State private var animate = false
+
     var body: some View {
         VStack(spacing: .zero) {
             
@@ -37,6 +38,17 @@ struct OnboardingSlide: View {
                         .cornerRadius(55)
                         .padding(bottom: 12)
                         .asButton(style: .scale(.light), action: buttonAction)
+                        .scaleEffect(animate ? 1.05 : 0.95)
+                        .animation(
+                            .easeInOut(duration: 1)
+                                .repeatForever(autoreverses: true),
+                            value: animate
+                        )
+                        // При появлении вью запускаем анимацию
+                        .onAppear {
+                            animate = true
+                        }
+
                     
                 }.padding(bottom: 55)
             }

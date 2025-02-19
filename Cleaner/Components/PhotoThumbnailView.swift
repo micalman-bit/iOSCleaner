@@ -20,12 +20,12 @@ struct PhotoThumbnailView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 176, height: 178)
+                    .frame(width: (.screenWidth - 42) / 2, height: (.screenWidth - 42) / 2)
                     .clipped()
             } else {
                 Rectangle()
                     .fill(Color.gray)
-                    .frame(width: 176, height: 178)
+                    .frame(width: (.screenWidth - 42) / 2, height: (.screenWidth - 42) / 2)
             }
         }
         .onAppear {
@@ -42,8 +42,8 @@ struct PhotoThumbnailView: View {
         PHImageManager.default().requestImage(
             for: asset,
             targetSize: CGSize(
-                width: 176,
-                height: 178
+                width: (.screenWidth - 42) / 2,
+                height: (.screenWidth - 42) / 2
             ),
             contentMode: .aspectFit,
             options: options

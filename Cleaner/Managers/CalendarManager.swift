@@ -23,6 +23,7 @@ struct EventsGroup: Identifiable {
     let id = UUID()
     let monthTitle: String
     var events: [CalendarEventItem]
+    var isSelected: Bool
 }
 
 class CalendarManager {
@@ -64,41 +65,46 @@ class CalendarManager {
         
         DispatchQueue.global(qos: .background).async { [weak self] in
             guard let self = self else { return }
-
-            // Пример: ищем события за последний год и на год вперёд
-            let oneYearFromNow = Date().addingTimeInterval(365 * 24 * 60 * 60)
-            let oneYearAgo = Date().addingTimeInterval(-365 * 24 * 60 * 60)
             
-            // Предикат для поиска событий
-            let predicate = self.eventStore.predicateForEvents(
-                withStart: oneYearAgo,
-                end: oneYearFromNow,
-                calendars: nil
-            )
+            let calendar = Calendar.current
+            let now = Date()
             
-            // Получаем события за выбранный диапазон
-            let events = self.eventStore.events(matching: predicate)
+            // Будем искать события за последние 20 лет с шагом в 4 года
+            let intervalYears = 4
+            let totalYears = 20
+            
+            var allEvents: [EKEvent] = []
+            
+            for i in stride(from: 0, to: totalYears, by: intervalYears) {
+                let startDate = calendar.date(byAdding: .year, value: -(i + intervalYears), to: now)!
+                let endDate = calendar.date(byAdding: .year, value: -i, to: now)!
+                
+                let predicate = self.eventStore.predicateForEvents(
+                    withStart: startDate,
+                    end: endDate,
+                    calendars: nil
+                )
+                
+                let events = self.eventStore.events(matching: predicate)
+                allEvents.append(contentsOf: events)
+            }
             
             // Группируем события по месяцу
-            var groupedEvents = self.groupEventsByMonth(events: events)
+            var groupedEvents = self.groupEventsByMonth(events: allEvents)
             
             // --- 1. Сортируем группы по убыванию времени (от нынешних к прошлым) ---
-            // Предполагается, что groupEventsByMonth использует monthTitle = "MMMM yyyy"
-            // Например, "February 2025". Нужно преобразовать эту строку в дату, чтобы корректно сравнить.
             let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "MMMM yyyy"  // должно совпадать с форматом в groupEventsByMonth
+            dateFormatter.dateFormat = "MMMM yyyy"
             
             groupedEvents.sort { group1, group2 in
                 guard let date1 = dateFormatter.date(from: group1.monthTitle),
                       let date2 = dateFormatter.date(from: group2.monthTitle) else {
-                    // Если какую-то дату не распарсить — ставим её в конец
                     return false
                 }
                 return date1 > date2
             }
             
-            // --- 2. При желании, сортируем события внутри каждой группы ---
-            // (От более новых к более старым)
+            // --- 2. Сортируем события внутри каждой группы ---
             for i in 0..<groupedEvents.count {
                 groupedEvents[i].events.sort { $0.startDate > $1.startDate }
             }
@@ -147,7 +153,7 @@ class CalendarManager {
                     event: ekEvent
                 )
             }
-            result.append(EventsGroup(monthTitle: key, events: items))
+            result.append(EventsGroup(monthTitle: key, events: items, isSelected: true))
         }
         
         return result

@@ -89,8 +89,8 @@ struct CalendarView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
             
             if viewModel.screenState == .content {
-                Text("Seselect All")
-                    .foregroundColor(.blue)
+                Text(viewModel.isEnabledSeselectAll ? "Deselect All" : "Seselect All")
+                    .foregroundColor(viewModel.isEnabledSeselectAll ? .gray : .blue)
                     .frame(width: 90, alignment: .center)
                     .font(.system(size: 15))
                     .asButton(style: .opacity, action: viewModel.setSelectToAllItems)
@@ -136,8 +136,9 @@ struct CalendarView: View {
                 
                 Spacer(minLength: .zero)
                 
-                Text("Deselect All")
-                    .textStyle(.textBold, textColor: .Typography.textLink)
+                Text(duplicates.isSelected ? "Deselect All" : "Seselect All")
+                    .foregroundColor(duplicates.isSelected ? .gray : .blue)
+                    .font(.system(size: 15))
                     .asButton(style: .opacity, action: { viewModel.setDeselectToItems(duplicates) })
                 
             }.padding(top: 12)

@@ -148,7 +148,7 @@ final class ContactsViewModel: ObservableObject {
             self.contactManager.duplicateGroups = duplicates
             
             NotificationCenter.default.post(
-                name: .updateCalendarCounter,
+                name: .updateContactCounter,
                 object: nil,
                 userInfo: ["counter": duplicates.count <= 1 ? 0 : duplicates.count]
             )

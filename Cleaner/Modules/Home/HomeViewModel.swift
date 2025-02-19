@@ -186,6 +186,18 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+    func updateContactCounter(_ value: Int) {
+        DispatchQueue.main.async { [weak self] in
+            self?.contactsText = String(value)
+        }
+    }
+    
+    func updateCalendarCounter(_ value: Int) {
+        DispatchQueue.main.async { [weak self] in
+            self?.сalendarText = String(value)
+        }
+    }
+
     // MARK: - Private Methods
     
     func showSettingsAlert(_ message: String) {
@@ -244,9 +256,11 @@ final class HomeViewModel: ObservableObject {
                 })
 
             } else {
-                self?.isCalendarLoaderActive = false
-                let totalItems = eventsGroup?.reduce(0) { $0 + $1.events.count } ?? 0
-                self?.сalendarText = "\(totalItems)"
+                DispatchQueue.main.async { [weak self] in
+                    self?.isCalendarLoaderActive = false
+                    let totalItems = eventsGroup?.reduce(0) { $0 + $1.events.count } ?? 0
+                    self?.сalendarText = "\(totalItems)"
+                }
             }
         }
     }

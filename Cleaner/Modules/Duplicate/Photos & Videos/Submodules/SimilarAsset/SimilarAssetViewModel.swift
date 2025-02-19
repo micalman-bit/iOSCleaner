@@ -70,7 +70,7 @@ final class SimilarAssetViewModel: ObservableObject {
             totalPhotos = "\(groupedPhotos.flatMap { $0.assets }.count)"
             // Сколько выбрано
             let allSelected = groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }
-            selectedPhotos = "\(allSelected.count)"
+//            selectedPhotos = "\(allSelected.count)"
             // Считаем размер
             calculateSelectedSize(for: allSelected)
             
@@ -139,27 +139,29 @@ final class SimilarAssetViewModel: ObservableObject {
         case .screenRecords:
             title = "Recordings"
         }
+        setDefaultDataToBottomButton()
         
         switch type {
         case .photos, .video:
             loadAndAnalyzePhotos(photoOrVideo)
+            checkStatusForSeselectAll()
             recalculateSelectedSize()
         case .screenshots:
             if let screenshotsOrRecording = screenshotsOrRecording {
                 self.screenState = .content
                 self.isAnalyzing = false
-                self.screenshots = screenshotsOrRecording
                 
-                self.groupedPhotos = screenshotsOrRecording.map {
-                    let allSelected = $0.groupAsset.allSatisfy { $0.isSelected }
-                    return DuplicateAssetGroup(
-                        isSelectedAll: allSelected,
-                        assets: $0.groupAsset
-                    )
+                self.screenshots = screenshotsOrRecording.map {
+                    let screenshotsAsset = $0.groupAsset.map { PhotoAsset(isSelected: true, asset: $0.asset) }
+                    let allSelected = screenshotsAsset.allSatisfy { $0.isSelected }
+                    return ScreenshotsAsset(title: $0.title, isSelectedAll: allSelected, groupAsset: screenshotsAsset)
                 }
+
+                totalPhotos = "\(self.screenshots.flatMap { $0.groupAsset }.count)"
+//                selectedPhotos = "\(self.screenshots.flatMap { $0.groupAsset }.filter { $0.isSelected }.count)"
                 
-                totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
-                selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+                checkStatusForSeselectAll()
+                recalculateSelectedSize()
                 
             } else {
                 self.isAnalyzing = true
@@ -167,32 +169,41 @@ final class SimilarAssetViewModel: ObservableObject {
                     guard let self = self else { return }
                     self.screenState = .content
                     self.isAnalyzing = false
-                    self.screenshots = assets
-
-                    self.groupedPhotos = assets.map {
-                        let allSelected = $0.groupAsset.allSatisfy { $0.isSelected }
-                        return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0.groupAsset)
-                    }
                     
-                    self.totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
-                    self.selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+                    self.screenshots = assets.map {
+                        let screenshotsAsset = $0.groupAsset.map { PhotoAsset(isSelected: true, asset: $0.asset) }
+                        let allSelected = screenshotsAsset.allSatisfy { $0.isSelected }
+                        return ScreenshotsAsset(title: $0.title, isSelectedAll: allSelected, groupAsset: screenshotsAsset)
+                    }
+                    self.totalPhotos = "\(self.screenshots.flatMap { $0.groupAsset }.count)"
+//                    self.selectedPhotos = "\(self.screenshots.flatMap { $0.groupAsset }.filter { $0.isSelected }.count)"
+                    
+                    checkStatusForSeselectAll()
+                    recalculateSelectedSize()
                 }
             }
-            recalculateSelectedSize()
         case .screenRecords:
             let status = videoManagementService.getScreenRecordingsStatus()
             if let screenshotsOrRecording = screenshotsOrRecording, status.isScanning {
                 self.screenState = .content
                 self.isAnalyzing = status.isScanning
-                self.screenshots = screenshotsOrRecording
-                
+
+                self.screenshots = screenshotsOrRecording.map {
+                    let screenRecordsAsset = $0.groupAsset.map { PhotoAsset(isSelected: true, asset: $0.asset) }
+                    let allSelected = screenRecordsAsset.allSatisfy { $0.isSelected }
+                    return ScreenshotsAsset(title: $0.title, isSelectedAll: allSelected, groupAsset: screenRecordsAsset)
+                }
                 self.groupedPhotos = screenshotsOrRecording.map {
-                    let allSelected = $0.groupAsset.allSatisfy { $0.isSelected }
-                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0.groupAsset)
+                    let screenRecordsAsset = $0.groupAsset.map { PhotoAsset(isSelected: true, asset: $0.asset) }
+                    let allSelected = screenRecordsAsset.allSatisfy { $0.isSelected }
+
+                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: screenRecordsAsset)
                 }
                 
                 totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
-                selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+//                selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+                
+                checkStatusForSeselectAll()
                 recalculateSelectedSize()
             } else {
                 DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in
@@ -202,7 +213,8 @@ final class SimilarAssetViewModel: ObservableObject {
         }
         
         startAnalysisTimer()
-        recalculateSelectedSize()
+//        recalculateSelectedSize()
+//        checkStatusForSeselectAll()
     }
     
     // MARK: - Public Methods
@@ -347,21 +359,37 @@ final class SimilarAssetViewModel: ObservableObject {
 
     /// Открывает подробный просмотр группы (например, карусель или что-то ещё)
     func openSimilarPhotoPicker(groupInex: Int, selectedItemInex: Int) {
-        let currentGroup = groupedPhotos[groupInex]
-        let selectedItem = currentGroup.assets[selectedItemInex]
+        let currentGroup: [PhotoAsset]
+        switch type {
+        case .photos, .video:
+            currentGroup = groupedPhotos[groupInex].assets
+        case .screenshots, .screenRecords:
+            currentGroup = screenshots[groupInex].groupAsset
+        }
+            
+        
+        let selectedItem = currentGroup[selectedItemInex]
         
         router.openSimilarPhotoPicker(
-            currentGroup.assets,
+            currentGroup,
             selectedImage: selectedItem,
             sucessAction: { [weak self] newAssets in
                 guard let self = self else { return }
                 // Обновляем группу
-                var group = self.groupedPhotos[groupInex]
-                group.assets = newAssets
-                // Пересчитываем isSelectedAll
-                group.isSelectedAll = newAssets.allSatisfy { $0.isSelected }
-                
-                self.groupedPhotos[groupInex] = group
+                switch type {
+                case .photos, .video:
+                    var group = self.groupedPhotos[groupInex]
+                    group.assets = newAssets
+                    group.isSelectedAll = newAssets.allSatisfy { $0.isSelected }
+                    self.groupedPhotos[groupInex] = group
+                    
+                case .screenshots, .screenRecords:
+                    var group = self.screenshots[groupInex]
+                    group.groupAsset = newAssets
+                    group.isSelectedAll = newAssets.allSatisfy { $0.isSelected }
+                    self.screenshots[groupInex] = group
+
+                }
                 self.recalculateSelectedSize()
             }
         )
@@ -437,24 +465,28 @@ final class SimilarAssetViewModel: ObservableObject {
                 case .photos:
                     if selectedAssets.isEmpty {
                         self.selectedPhotos = "DELETE PHOTOS"
+                        self.selectedSizeInGB = ""
                     } else {
                         self.selectedPhotos = "DELETE \(selectedAssets.count) PHOTOS"
                     }
                 case .screenshots:
                     if selectedAssets.isEmpty {
                         self.selectedPhotos = "DELETE SCREENSHOTS"
+                        self.selectedSizeInGB = ""
                     } else {
                         self.selectedPhotos = "DELETE \(selectedAssets.count) SCREENSHOTS"
                     }
                 case .video:
                     if selectedAssets.isEmpty {
                         self.selectedPhotos = "DELETE VIDEO"
+                        self.selectedSizeInGB = ""
                     } else {
                         self.selectedPhotos = "DELETE \(selectedAssets.count) VIDEO"
                     }
                 case .screenRecords:
                     if selectedAssets.isEmpty {
                         self.selectedPhotos = "DELETE RECORDINGS"
+                        self.selectedSizeInGB = ""
                     } else {
                         self.selectedPhotos = "DELETE \(selectedAssets.count) VIDEO"
                     }
@@ -657,10 +689,15 @@ final class SimilarAssetViewModel: ObservableObject {
                 // Преобразуем в [DuplicateAssetGroup]
                 self.groupedPhotos = photoOrVideo.map {
                     let allSelected = $0.allSatisfy { $0.isSelected }
-                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0)
+                    
+                    let photoAssetArray = $0.enumerated().map { index, asset in
+                        return PhotoAsset(isSelected: index == 0 ? false : true, asset: asset.asset)
+                    }
+                    
+                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: photoAssetArray)
                 }
                 totalPhotos = "\(groupedPhotos.flatMap { $0.assets }.count)"
-                selectedPhotos = "\(groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+//                selectedPhotos = "\(groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
             }
             
             // Если сканирование ещё идёт
@@ -716,7 +753,12 @@ final class SimilarAssetViewModel: ObservableObject {
                 self.isAnalyzing = false
                 self.groupedPhotos = photoOrVideo.map {
                     let allSelected = $0.allSatisfy { $0.isSelected }
-                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0)
+                    
+                    let videoAssetArray = $0.enumerated().map { index, asset in
+                        return PhotoAsset(isSelected: index == 0 ? false : true, asset: asset.asset)
+                    }
+
+                    return DuplicateAssetGroup(isSelectedAll: allSelected, assets: videoAssetArray)
                 }
                 self.totalPhotos = "\(groupedPhotos.flatMap { $0.assets }.count)"
             }
@@ -842,15 +884,21 @@ final class SimilarAssetViewModel: ObservableObject {
             
             self.screenState = .content
             self.isAnalyzing = status.isScanning
-            self.screenshots = status.groups
             
+            self.screenshots = status.groups.map {
+                let screenRecordsAsset = $0.groupAsset.map { PhotoAsset(isSelected: true, asset: $0.asset) }
+                let allSelected = screenRecordsAsset.allSatisfy { $0.isSelected }
+                return ScreenshotsAsset(title: $0.title, isSelectedAll: allSelected, groupAsset: screenRecordsAsset)
+            }
             self.groupedPhotos = status.groups.map {
-                let allSelected = $0.groupAsset.allSatisfy { $0.isSelected }
-                return DuplicateAssetGroup(isSelectedAll: allSelected, assets: $0.groupAsset)
+                var screenRecordsAsset = $0.groupAsset.map { PhotoAsset(isSelected: true, asset: $0.asset) }
+                let allSelected = screenRecordsAsset.allSatisfy { $0.isSelected }
+                
+                return DuplicateAssetGroup(isSelectedAll: allSelected, assets: screenRecordsAsset)
             }
             
             self.totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
-            self.selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
+//            self.selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
             
             if !status.isScanning {
                 self.isAnalyzing = false
@@ -860,6 +908,24 @@ final class SimilarAssetViewModel: ObservableObject {
                     self?.getScreenRecordsGroups()
                 }
             }
+        }
+    }
+    
+    
+    private func setDefaultDataToBottomButton() {
+        switch self.type {
+        case .photos:
+            self.selectedPhotos = "DELETE PHOTOS"
+            self.selectedSizeInGB = ""
+        case .screenshots:
+            self.selectedPhotos = "DELETE SCREENSHOTS"
+            self.selectedSizeInGB = ""
+        case .video:
+            self.selectedPhotos = "DELETE VIDEO"
+            self.selectedSizeInGB = ""
+        case .screenRecords:
+            self.selectedPhotos = "DELETE RECORDINGS"
+            self.selectedSizeInGB = ""
         }
     }
 }

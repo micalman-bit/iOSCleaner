@@ -147,7 +147,7 @@ struct SimilarAssetView: View {
                     .padding(.horizontal, 16)
                 
                 makePhotosSections()
-                    .padding(.top, 12)
+                    .padding(.top, 24)
                     .padding(.horizontal, 16)
             }
             .background(Color.hexToColor(hex: "#F4F7FA"))
@@ -191,7 +191,6 @@ struct SimilarAssetView: View {
                     }
                     makeLazyVGrid(for: group)
                 }
-                .padding(.top, 24)
             }
         case .screenshots, .screenRecords:
             ForEach(Array(viewModel.screenshots.enumerated()), id: \.1.id) { index, screenshot in
@@ -202,7 +201,6 @@ struct SimilarAssetView: View {
                         
                         Spacer(minLength: .zero)
                         
-                        // Используем вычисляемое свойство screenshot.isSelectedAll
                         Text(screenshot.isSelectedAll ? "Deselect All" : "Select All")
                             .font(.system(size: 14))
                             .foregroundStyle(screenshot.isSelectedAll ? .gray : .blue)
@@ -211,9 +209,8 @@ struct SimilarAssetView: View {
                             }
                     }
                     
-                    makeLazyVGrid(for: DuplicateAssetGroup(isSelectedAll: screenshot.isSelectedAll, assets: screenshot.groupAsset))
+                    makeLazyVGrid(screenshots: screenshot)
                 }
-                .padding(.top, 24)
             }
         }
     }
@@ -223,9 +220,10 @@ struct SimilarAssetView: View {
     @ViewBuilder private func makeLazyVGrid(for assets: DuplicateAssetGroup) -> some View {
         LazyVGrid(
             columns: [
-                GridItem(.fixed(178), spacing: 8),
-                GridItem(.fixed(178), spacing: 8)
+                GridItem(.fixed((.screenWidth - 42) / 2), spacing: 12, alignment: .leading),
+                GridItem(.fixed((.screenWidth - 42) / 2), spacing: 0, alignment: .leading)
             ],
+            alignment: .leading,
             spacing: 12
         ) {
             ForEach(assets.assets.indices, id: \.self) { index in
@@ -283,21 +281,19 @@ struct SimilarAssetView: View {
                                 }
                         }
                     }
-                }.frame(width: 176, height: 178)
+                }.frame(width: (.screenWidth - 42) / 2, height: (.screenWidth - 42) / 2)
             }
         }
     }
 
-    @ViewBuilder private func makeLazyVGrid(for screenshots: ScreenshotsAsset) -> some View {
+    @ViewBuilder private func makeLazyVGrid(screenshots: ScreenshotsAsset) -> some View {
         LazyVGrid(
             columns: [
-                // spacing между первой и второй колонкой
-                GridItem(.fixed(178), spacing: 12, alignment: .leading),
-                // второй GridItem без spacing, т.к. нет третьей колонки
-                GridItem(.fixed(178), spacing: 0, alignment: .leading)
+                GridItem(.fixed((.screenWidth - 42) / 2), spacing: 12, alignment: .leading),
+                GridItem(.fixed((.screenWidth - 42) / 2), spacing: 0, alignment: .leading)
             ],
-            alignment: .leading,  // Колонки будут прижаты к левому краю
-            spacing: 12           // Отступ между строками (вертикальный)
+            alignment: .leading,
+            spacing: 12
         ) {
             ForEach(screenshots.groupAsset.indices, id: \.self) { index in
                 let asset = screenshots.groupAsset[index]
@@ -354,7 +350,7 @@ struct SimilarAssetView: View {
                                 }
                         }
                     }
-                }.frame(width: 176, height: 178)
+                }.frame(width: (.screenWidth - 42) / 2, height: (.screenWidth - 42) / 2)
             }
         }
         .frame(width: .screenWidth - 30, alignment: .leading)

@@ -107,24 +107,64 @@ final class PhotosAndVideosViewModel: ObservableObject {
 
         self.listOfItems = self.configureBaseList(screenType)
         
-        if !UserDefaultsService.isGetCalendarAccess {
-            calendarManager.requestCalendarAccess { [weak self] isAvailable in
-                if isAvailable {
-                    self?.calendarManager.searchEventsInBackground()
+        if screenType == .analyzeStorage {
+            if !UserDefaultsService.isGetCalendarAccess {
+                calendarManager.requestCalendarAccess { [weak self] isAvailable in
+                    if isAvailable {
+                        guard let self else { return }
+                        self.contactManager.startDuplicateSearch()
+                        self.updateListItem(
+                            with: PhotosAndVideosItemModel(
+                                leftTitle: "Calendar Events",
+                                letftImage: .init(
+                                    image: Image("circleCheck"),
+                                    size: 24
+                                ),
+                                leftSubtitle: "0",
+                                rightTitle: nil,
+                                rightImage: .init(
+                                    image: Image("arrow-right-s-line"),
+                                    size: 24
+                                ),
+                                isLoading: true,
+                                type: .calendarEvents,
+                                action: self.didTapCalendar
+                            )
+                        )
+                    }
                 }
+            } else {
+                calendarManager.searchEventsInBackground()
             }
-        } else {
-            calendarManager.searchEventsInBackground()
-        }
-        
-        if !UserDefaultsService.isGetContactsAccess {
-            contactManager.requestContactsAccess { [weak self] isAvailable in
-                if isAvailable {
-                    self?.contactManager.startDuplicateSearch()
+            
+            if !UserDefaultsService.isGetContactsAccess {
+                contactManager.requestContactsAccess { [weak self] isAvailable in
+                    if isAvailable {
+                        guard let self else { return }
+                        self.contactManager.startDuplicateSearch()
+                        self.updateListItem(
+                            with: PhotosAndVideosItemModel(
+                                leftTitle: "Contacts Duplicates",
+                                letftImage: .init(
+                                    image: Image("circleCheck"),
+                                    size: 24
+                                ),
+                                leftSubtitle: "0",
+                                rightTitle: nil,
+                                rightImage: .init(
+                                    image: Image("arrow-right-s-line"),
+                                    size: 24
+                                ),
+                                isLoading: true,
+                                type: .contactsDuplicates,
+                                action: self.didTapContacts
+                            )
+                        )
+                    }
                 }
+            } else {
+                contactManager.startDuplicateSearch()
             }
-        } else {
-            contactManager.startDuplicateSearch()
         }
 
         loadAndAnalyzePhotos()

@@ -38,7 +38,7 @@ final class SplashViewModel: ObservableObject {
                 router.openHome()
             } else {
                 router.openHome()
-//                router.openPaywal()
+//                router.openPaywall()
             }
         } else {
             router.openOnboarding()

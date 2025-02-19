@@ -49,6 +49,16 @@ struct HomeView: View {
                 makeButtonListView()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .updateCalendarCounter)) { notification in
+            if let counter = notification.userInfo?["counter"] as? Int {
+                viewModel.updateCalendarCounter(counter)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .updateContactCounter)) { notification in
+            if let counter = notification.userInfo?["counter"] as? Int {
+                viewModel.updateContactCounter(counter)
+            }
+        }
         .ignoresSafeArea(edges: .top)
         .onAppear { viewModel.checkAccess() }
     }

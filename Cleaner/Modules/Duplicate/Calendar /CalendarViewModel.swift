@@ -24,6 +24,8 @@ final class CalendarViewModel: ObservableObject {
     @Published var events: [EventsGroup] = []
     @Published var screenState: ScreenState = .content
     
+    @Published var isEnabledSeselectAll: Bool = false
+
     // MARK: - Private Properties
     
     private let service: CalendarService
@@ -67,14 +69,26 @@ final class CalendarViewModel: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
+            
             for index in self.events.indices {
+                self.events[index].isSelected.toggle()
                 for item in items.events {
                     if let itemIndex = self.events[index].events.firstIndex(where: { $0.id == item.id }) {
-                        self.events[index].events[itemIndex].isSelected = false
+                        self.events[index].events[itemIndex].isSelected = self.events[index].isSelected
                     }
                 }
             }
+
+            let allSelected = self.events
+                .flatMap { $0.events }
+                .allSatisfy { $0.isSelected }
             
+            if allSelected {
+                isEnabledSeselectAll = true
+            } else {
+                isEnabledSeselectAll = false
+            }
+
             updateDuplicateCount()
         }
     }
@@ -84,11 +98,24 @@ final class CalendarViewModel: ObservableObject {
             guard let self = self else { return }
             
             for index in self.events.indices {
+                self.events[index].isSelected.toggle()
+                                
                 for itemIndex in self.events[index].events.indices {
-                    self.events[index].events[itemIndex].isSelected = true
+                    self.events[index].events[itemIndex].isSelected = self.events[index].isSelected
                 }
+
             }
             
+            let allSelected = self.events
+                .flatMap { $0.events }
+                .allSatisfy { $0.isSelected }
+            
+            if allSelected {
+                isEnabledSeselectAll = true
+            } else {
+                isEnabledSeselectAll = false
+            }
+
             updateDuplicateCount()
         }
     }
@@ -117,6 +144,12 @@ final class CalendarViewModel: ObservableObject {
             
             self.updateDuplicateCount()
             
+            NotificationCenter.default.post(
+                name: .updateCalendarCounter,
+                object: nil,
+                userInfo: ["counter": events.count]
+            )
+
             if self.events.isEmpty {
                 self.screenState = .allClean
             }

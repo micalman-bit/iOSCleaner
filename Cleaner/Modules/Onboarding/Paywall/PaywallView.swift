@@ -89,7 +89,6 @@ struct PaywallView: View {
         }
         .padding(.top, 40)
         
-        // Предположим, что LottieView – это ваш кастомный SwiftUI-вью
         LottieView(
             name: "paywall",
             contentMode: .scaleAspectFit,
@@ -121,6 +120,58 @@ struct PaywallView: View {
                 .background(Color.white)
                 .cornerRadius(14)
             }
+
+            // THREE
+            HStack(spacing: .zero) {
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("3-DAY FREE TRIAL")
+                        .textStyle(.textBold, textColor: .Typography.textGray)
+                    
+                    Text("then $6.99/week")
+                        .textStyle(.textBold)
+                }
+                
+                Spacer(minLength: .zero)
+                
+                VStack(spacing: 2) {
+                    Text("3 DAYS FREE")
+                        .textStyle(
+                            .semibold,
+                            textColor: viewModel.isSelectWeekPlan ? .Typography.textWhite : .Typography.textBlack
+                        )
+                        .padding(.vertical, 3)
+                        .padding(.horizontal, 10)
+                        .background(
+                            viewModel.isSelectWeekPlan
+                            ? AnyView(
+                                LinearGradient(
+                                    gradient: Gradient(colors: Color.Gradients.bestOfferLogo),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                              )
+                            : AnyView(Color.hexToColor(hex: "#A3C3FF"))
+                        )
+                        .cornerRadius(30)
+                }
+            }
+            .padding(.vertical, 9)
+            .padding(.horizontal, 20)
+            .background(
+                viewModel.isSelectWeekPlan
+                ? AnyView(Color.hexToColor(hex: "#EBF0FF"))
+                : AnyView(Color.white)
+            )
+            .cornerRadius(14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(
+                        viewModel.isSelectWeekPlan ? Color.Background.darkBlue : Color.white,
+                        lineWidth: 2
+                    )
+            )
+            .asButton(style: .scale(.light), action: viewModel.didTapWeekPlan)
 
             // TWO
             HStack(spacing: .zero) {
@@ -177,57 +228,6 @@ struct PaywallView: View {
             .cornerRadius(14)
             .asButton(style: .scale(.light), action: viewModel.didTapMonthPlan)
             
-            // THREE
-            HStack(spacing: .zero) {
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("3-DAY FREE TRIAL")
-                        .textStyle(.textBold, textColor: .Typography.textGray)
-                    
-                    Text("then $6.99/week")
-                        .textStyle(.textBold)
-                }
-                
-                Spacer(minLength: .zero)
-                
-                VStack(spacing: 2) {
-                    Text("3 DAYS FREE")
-                        .textStyle(
-                            .semibold,
-                            textColor: viewModel.isSelectWeekPlan ? .Typography.textWhite : .Typography.textBlack
-                        )
-                        .padding(.vertical, 3)
-                        .padding(.horizontal, 10)
-                        .background(
-                            viewModel.isSelectWeekPlan
-                            ? AnyView(
-                                LinearGradient(
-                                    gradient: Gradient(colors: Color.Gradients.bestOfferLogo),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                              )
-                            : AnyView(Color.hexToColor(hex: "#A3C3FF"))
-                        )
-                        .cornerRadius(30)
-                }
-            }
-            .padding(.vertical, 9)
-            .padding(.horizontal, 20)
-            .background(
-                viewModel.isSelectWeekPlan
-                ? AnyView(Color.hexToColor(hex: "#EBF0FF"))
-                : AnyView(Color.white)
-            )
-            .cornerRadius(14)
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(
-                        viewModel.isSelectWeekPlan ? Color.Background.darkBlue : Color.white,
-                        lineWidth: 2
-                    )
-            )
-            .asButton(style: .scale(.light), action: viewModel.didTapWeekPlan)
         }
         .padding(.bottom, 12)
         .padding(.horizontal, 22)
