@@ -65,18 +65,9 @@ struct HomeView: View {
 
 
     // MARK: - Header View
-    
     @ViewBuilder private func makeHeaderView() -> some View {
-        HStack(spacing: .zero) {
-            Image("Setting")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 40, height: 40)
-                .padding(leading: 24)
-                .asButton(style: .scale(.heavy), action: viewModel.didTapSetting)
-            
-            Spacer(minLength: .zero)
-            
+        ZStack {
+            // Центрированный заголовок
             VStack(spacing: .zero) {
                 Text(UIDevice.current.name)
                     .textStyle(.h1)
@@ -84,53 +75,87 @@ struct HomeView: View {
                     .textStyle(.text)
                     .padding(.bottom, 20)
             }
-            .padding(top: 14)
+            .padding(.top, 14)
             .asButton(style: .opacity, action: { viewModel.konamiCodeCounter += 1 })
-            
-            
-            
-            Spacer(minLength: .zero)
-            
-            switch viewModel.isHaveSubscription {
-            case true:
-                HStack(spacing: 3) {
-                    Image("tick")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 24, height: 24)
-                        .clipped()
-                }
-                .frame(width: 45, height: 38)
-                .background(Color.white)
-                .cornerRadius(20)
-                .padding(trailing: 24)
+            .frame(maxWidth: .infinity)
 
-            case false:
-                HStack(spacing: 3) {
-                    Image("crown")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 16, height: 16)
-                        .clipped()
-
-                    Text("PRO")
-                        .textStyle(.textBold, textColor: .Typography.textWhite)
-                }
-                .frame(width: 68, height: 34)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(
-                            colors: Color.Gradients.proSubscriptionLogo
-                        ),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .cornerRadius(20)
+            // Элементы, размещенные по краям (например, кнопка настроек слева)
+            HStack {
+                Image("Setting")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 40, height: 40)
+                    .padding(.leading, 24)
+                    .asButton(style: .scale(.heavy), action: viewModel.didTapSetting)
+                Spacer()
             }
-            
         }
     }
+
+//    @ViewBuilder private func makeHeaderView() -> some View {
+//        HStack(spacing: .zero) {
+//            Image("Setting")
+//                .resizable()
+//                .scaledToFit()
+//                .frame(width: 40, height: 40)
+//                .padding(leading: 24)
+//                .asButton(style: .scale(.heavy), action: viewModel.didTapSetting)
+//            
+//            Spacer(minLength: .zero)
+//            
+//            VStack(spacing: .zero) {
+//                Text(UIDevice.current.name)
+//                    .textStyle(.h1)
+//                Text("iOS " + UIDevice.current.systemVersion)
+//                    .textStyle(.text)
+//                    .padding(.bottom, 20)
+//            }
+//            .padding(top: 14)
+//            .asButton(style: .opacity, action: { viewModel.konamiCodeCounter += 1 })
+//            
+//            
+//            Spacer()
+//                .frame(width: 64)
+//            
+//            switch viewModel.isHaveSubscription {
+//            case true:
+//                HStack(spacing: 3) {
+//                    Image("tick")
+//                        .resizable()
+//                        .scaledToFit()
+//                        .frame(width: 24, height: 24)
+//                        .clipped()
+//                }
+//                .frame(width: 45, height: 38)
+//                .background(Color.white)
+//                .cornerRadius(20)
+//                .padding(trailing: 24)
+//
+//            case false:
+//                HStack(spacing: 3) {
+//                    Image("crown")
+//                        .resizable()
+//                        .scaledToFit()
+//                        .frame(width: 16, height: 16)
+//                        .clipped()
+//
+//                    Text("PRO")
+//                        .textStyle(.textBold, textColor: .Typography.textWhite)
+//                }
+//                .frame(width: 68, height: 34)
+//                .background(
+//                    LinearGradient(
+//                        gradient: Gradient(
+//                            colors: Color.Gradients.proSubscriptionLogo
+//                        ),
+//                        startPoint: .topLeading,
+//                        endPoint: .bottomTrailing
+//                    )
+//                )
+//                .cornerRadius(20)
+//            }
+//        }
+//    }
         
     
     // MARK: - Content View

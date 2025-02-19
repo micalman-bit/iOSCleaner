@@ -29,24 +29,24 @@ struct ContactsView: View {
             case .loading:
                 makeLoaderView()
                 
-            case .content:
+            case .content, .allClean:
                 makeContentView()
                     .padding(horizontal: 20)
                     .background(Color.hexToColor(hex: "#F4F7FA"))
                 
                 makeButtonView()
 
-            case .allClean:
-                VStack {
-                    Spacer(minLength: .zero)
-                    
-                    makeAllCleanView()
-                        .background(Color.hexToColor(hex: "#F4F7FA"))
-                    
-                    Spacer(minLength: .zero)
-                    
-                    makeBackButtonView()
-                }.background(Color.hexToColor(hex: "#F4F7FA"))
+//            case .allClean:
+//                VStack {
+//                    Spacer(minLength: .zero)
+//                    
+//                    makeAllCleanView()
+//                        .background(Color.hexToColor(hex: "#F4F7FA"))
+//                    
+//                    Spacer(minLength: .zero)
+//                    
+//                    makeBackButtonView()
+//                }.background(Color.hexToColor(hex: "#F4F7FA"))
             }
             
         }
@@ -147,8 +147,7 @@ struct ContactsView: View {
             ForEach(duplicates.contacts.dropFirst()) { item in
                 makeContactsItemView(item: item)
             }
-            
-        }.padding(top: 20)
+        }
     }
     
     // MARK: - Contacts Item

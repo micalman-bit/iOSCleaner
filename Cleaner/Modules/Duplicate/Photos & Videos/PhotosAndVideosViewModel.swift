@@ -180,7 +180,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
     }
     
     func updateContactCounter(_ value: Int) {
-        var letftImage: PhotosAndVideosLeftImageModel = .init(
+        let letftImage: PhotosAndVideosLeftImageModel = .init(
             image: Image("circleCheck"),
             size: 24
         )
@@ -312,8 +312,8 @@ final class PhotosAndVideosViewModel: ObservableObject {
                         self.openSimilarAsset(
                             photoOrVideo: self.groupedPhotos,
                             type: .photos,
-                            backTapAction: { [weak self] photAsset, screenshotAsset in
-                                if let photAsset {
+                            backTapAction: { [weak self] photAsset, screenshotAsset, isDataLoadedAndShow in
+                                if let photAsset, isDataLoadedAndShow {
                                     self?.assetService.duplicatePhotoGroups = photAsset
                                     self?.groupedPhotos = photAsset.compactMap({ $0.assets })
                                     self?.updatePhotosPanel(isByMyself: true)
@@ -393,8 +393,8 @@ final class PhotosAndVideosViewModel: ObservableObject {
                                 self?.openSimilarAsset(
                                     screenshotsOrRecording: screenshots,
                                     type: .screenshots,
-                                    backTapAction: { photAsset, screenshotAsset in
-                                        if let screenshotAsset {
+                                    backTapAction: { photAsset, screenshotAsset, isDataLoadedAndShow in
+                                        if let screenshotAsset, isDataLoadedAndShow {
                                             self?.assetService.screenshotsAssets = screenshotAsset
                                             self?.groupedScreenshots = screenshotAsset
                                             self?.updateScreenshotsPanel()
@@ -481,8 +481,8 @@ final class PhotosAndVideosViewModel: ObservableObject {
                     self.openSimilarAsset(
                         photoOrVideo: self.groupedVideo,
                         type: .video,
-                        backTapAction: { [weak self] photAsset, screenshotAsset in
-                            if let photAsset {
+                        backTapAction: { [weak self] photAsset, screenshotAsset, isDataLoadedAndShow in
+                            if let photAsset, isDataLoadedAndShow {
                                 self?.videoManagementService.cachedVideoDuplicates = photAsset
                                 self?.groupedVideo = photAsset.map { $0.assets }
                                 self?.updateVideosPanel()
@@ -567,8 +567,8 @@ final class PhotosAndVideosViewModel: ObservableObject {
                     self.openSimilarAsset(
                         photoOrVideo: self.groupedVideo,
                         type: .screenRecords,
-                        backTapAction: { [weak self] photAsset, screenshotAsset in
-                            if let screenshotAsset {
+                        backTapAction: { [weak self] photAsset, screenshotAsset, isDataLoadedAndShow in
+                            if let screenshotAsset, isDataLoadedAndShow {
                                 self?.videoManagementService.cachedScreenRecordings = screenshotAsset
                                 self?.groupedScreenRecords = screenshotAsset
                                 self?.updateSceenRecordsPanel()
@@ -796,7 +796,7 @@ final class PhotosAndVideosViewModel: ObservableObject {
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
         type: SimilarAssetType,
-        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void
+        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?, Bool) -> Void
     ) {
         router.openSimilarAsset(
             photoOrVideo: photoOrVideo,

@@ -28,13 +28,13 @@ final class OnboardingViewModel: ObservableObject {
     }
     
     func didTapTermsOfUse() {
-        if let url = URL(string: "https://www.google.com") {
+        if let url = URL(string: "https://weareadmire.com/tc") {
             selectedURL = url
         }
     }
     
     func didTapPrivacyPolicy() {
-        if let url = URL(string: "https://www.apple.com") {
+        if let url = URL(string: "https://weareadmire.com/pp") {
             selectedURL = url
         }
     }

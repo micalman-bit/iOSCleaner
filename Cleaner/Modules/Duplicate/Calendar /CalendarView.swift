@@ -115,7 +115,7 @@ struct CalendarView: View {
                 
                 ForEach(viewModel.events) { item in
                     makeListDuplicatesView(item)
-                        .padding(top: 24)
+                        .padding(top: 12)
                 }
                 
             }
@@ -147,7 +147,7 @@ struct CalendarView: View {
                 makeContactsItemView(item: item)
             }
             
-        }.padding(top: 20)
+        }
     }
     
     // MARK: - Contacts Item
@@ -175,7 +175,7 @@ struct CalendarView: View {
         .padding(vertical: 22.5, horizontal: 20)
         .background(Color.white)
         .cornerRadius(14)
-        .padding(top: 16)
+        .padding(top: 12)
     }
 
     

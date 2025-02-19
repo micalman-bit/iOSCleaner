@@ -111,7 +111,9 @@ final class SimilarAssetViewModel: ObservableObject {
     private var analysisTimer: Timer?
     private var videosUpdateTimer: Timer?
     
-    private let backTapAction: ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void
+    private let backTapAction: ([DuplicateAssetGroup]?, [ScreenshotsAsset]?, Bool) -> Void
+    
+    private var isDataLoadedAndShow: Bool = false
     
     // MARK: - Инициализация
     
@@ -121,7 +123,7 @@ final class SimilarAssetViewModel: ObservableObject {
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
         type: SimilarAssetType,
-        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void,
+        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?, Bool) -> Void,
         assetManagementService: AssetManagementService = AssetManagementService()
     ) {
         self.service = service
@@ -146,6 +148,7 @@ final class SimilarAssetViewModel: ObservableObject {
             loadAndAnalyzePhotos(photoOrVideo)
             checkStatusForSeselectAll()
             recalculateSelectedSize()
+            isDataLoadedAndShow = true
         case .screenshots:
             if let screenshotsOrRecording = screenshotsOrRecording {
                 self.screenState = .content
@@ -162,7 +165,7 @@ final class SimilarAssetViewModel: ObservableObject {
                 
                 checkStatusForSeselectAll()
                 recalculateSelectedSize()
-                
+                isDataLoadedAndShow = true
             } else {
                 self.isAnalyzing = true
                 assetService.fetchScreenshotsGroupedByMonth { [weak self] assets in
@@ -180,6 +183,7 @@ final class SimilarAssetViewModel: ObservableObject {
                     
                     checkStatusForSeselectAll()
                     recalculateSelectedSize()
+                    isDataLoadedAndShow = true
                 }
             }
         case .screenRecords:
@@ -205,6 +209,7 @@ final class SimilarAssetViewModel: ObservableObject {
                 
                 checkStatusForSeselectAll()
                 recalculateSelectedSize()
+                isDataLoadedAndShow = true
             } else {
                 DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1.0) { [weak self] in
                     self?.getScreenRecordsGroups()
@@ -238,22 +243,29 @@ final class SimilarAssetViewModel: ObservableObject {
                 var group = groupedPhotos[groupIndex]
                 
                 // Если сейчас все выбраны – снимаем, иначе выбираем
-                let needSelectAll = !group.assets.allSatisfy { $0.isSelected }
+                let needSelectAll = !group.assets.dropFirst().allSatisfy { $0.isSelected }
                 
-                let updatedAssets = group.assets.map {
+                var updatedAssets = group.assets.map {
                     PhotoAsset(isSelected: needSelectAll, asset: $0.asset)
                 }
                 
+                
                 group.assets = updatedAssets
                 group.isSelectedAll = needSelectAll
+                
+                if needSelectAll, let isSelected = groupedPhotos[groupIndex].assets.first?.isSelected, !isSelected  {
+                    group.assets.first?.isSelected = false
+                }
+                
                 groupedPhotos[groupIndex] = group
                 
+
                 checkStatusForSeselectAll()
                 
             case .all:
                 // Проверяем, выбраны ли все ассеты во всех группах
                 let allSelected = groupedPhotos
-                    .flatMap { $0.assets }
+                    .flatMap { $0.assets.dropFirst() }
                     .allSatisfy { $0.isSelected }
                 
                 let needSelect = !allSelected
@@ -265,6 +277,11 @@ final class SimilarAssetViewModel: ObservableObject {
                     }
                     group.assets = newAssets
                     group.isSelectedAll = needSelect
+                    
+                    if needSelect, let isSelected = oldGroup.assets.first?.isSelected, !isSelected  {
+                        group.assets.first?.isSelected = false
+                    }
+
                     return group
                 }
                 
@@ -325,7 +342,7 @@ final class SimilarAssetViewModel: ObservableObject {
         let allSelected: Bool
         switch type {
         case .photos, .video:
-            allSelected = groupedPhotos.flatMap { $0.assets }.allSatisfy { $0.isSelected }
+            allSelected = groupedPhotos.flatMap { $0.assets.dropFirst() }.allSatisfy { $0.isSelected }
         case .screenRecords, .screenshots:
             allSelected = screenshots.flatMap { $0.groupAsset }.allSatisfy { $0.isSelected }
         }
@@ -396,7 +413,7 @@ final class SimilarAssetViewModel: ObservableObject {
     }
     
     func dismiss() {
-        backTapAction(groupedPhotos, screenshots)
+        backTapAction(groupedPhotos, screenshots, isDataLoadedAndShow)
         router.dismiss()
         
         photosUpdateTimer?.invalidate()
@@ -428,23 +445,13 @@ final class SimilarAssetViewModel: ObservableObject {
                 if success {
                     print("Selected photos deleted successfully.")
                     self.removeDeletedAssets(from: assetsToDelete)
-                    self.deliteItemFromManager(assetsToDelete: assetsToDelete)
                 } else if let error = error {
                     print("Error deleting photos: \(error.localizedDescription)")
                 }
             }
         })
     }
-    
-    func deliteItemFromManager(assetsToDelete: [PHAsset]) {
-//        switch type {
-//        case .photos, .screenshots:
-//            assetService.removeAssetsFromCachedGroups(assetsToDelete: assetsToDelete, type: type)
-//        case .video, .screenRecords:
-//            print("")
-//        }
-    }
-    
+        
     /// Пересчитываем суммарный размер выбранных ассетов (и обновляем UI-кнопки)
     func recalculateSelectedSize() {
         let selectedAssets: [PhotoAsset]
@@ -610,69 +617,89 @@ final class SimilarAssetViewModel: ObservableObject {
         
         // Фильтруем каждую группу, удаляя ассеты из массива
         var newGroups: [DuplicateAssetGroup] = []
-        
-        for oldGroup in groupedPhotos {
-            // Убираем удалённые ассеты
-            let filtered = oldGroup.assets.filter { photoAsset in
-                !deletedAssets.contains { $0.localIdentifier == photoAsset.asset.localIdentifier }
-            }
-            // Если эта группа всё ещё имеет смысл
-            if (type == .photos || type == .video) {
-                // Например, оставляем группу, только если >= 2 элементов
-                if filtered.count >= 2 {
-                    // Допустим, заново задаём isSelected у первой и последующих (пример)
-                    // Или оставляем как есть. Здесь на ваше усмотрение.
-                    // Ниже просто оставим, как есть, кроме пересчёта isSelectedAll
-                    let allSelected = filtered.allSatisfy { $0.isSelected }
-                    let newGroup = DuplicateAssetGroup(
-                        isSelectedAll: allSelected,
-                        assets: filtered
-                    )
-                    newGroups.append(newGroup)
+        switch type {
+        case .photos, .video:
+            for oldGroup in groupedPhotos {
+                // Убираем удалённые ассеты
+                let filtered = oldGroup.assets.filter { photoAsset in
+                    !deletedAssets.contains { $0.localIdentifier == photoAsset.asset.localIdentifier }
                 }
-            } else {
-                // Для скриншотов/записей экрана достаточно не выкидывать пустые
-                if !filtered.isEmpty {
-                    let allSelected = filtered.allSatisfy { $0.isSelected }
-                    let newGroup = DuplicateAssetGroup(
-                        isSelectedAll: allSelected,
-                        assets: filtered
-                    )
-                    newGroups.append(newGroup)
-                }
-            }
-        }
-        
-        groupedPhotos = newGroups
-        
-        // Если это скриншоты или экранные записи – синхронизируем screenshots
-        if type == .screenshots || type == .screenRecords {
-            var newScreens: [ScreenshotsAsset] = []
-            
-            // Например, идём по старому массиву screenshots, сопоставляя с новой группой
-            // (если у вас есть иная логика — реализуйте её)
-            for (index, oldScreen) in screenshots.enumerated() {
-                if index < groupedPhotos.count {
-                    let groupAssets = groupedPhotos[index].assets
-                    if !groupAssets.isEmpty {
-                        newScreens.append(
-                            ScreenshotsAsset(
-                                title: oldScreen.title,
-                                isSelectedAll: oldScreen.isSelectedAll,
-                                groupAsset: groupAssets
-                            )
+                // Если эта группа всё ещё имеет смысл
+                if (type == .photos || type == .video) {
+                    // Например, оставляем группу, только если >= 2 элементов
+                    if filtered.count >= 2 {
+                        // Допустим, заново задаём isSelected у первой и последующих (пример)
+                        // Или оставляем как есть. Здесь на ваше усмотрение.
+                        // Ниже просто оставим, как есть, кроме пересчёта isSelectedAll
+                        let allSelected = filtered.allSatisfy { $0.isSelected }
+                        let newGroup = DuplicateAssetGroup(
+                            isSelectedAll: allSelected,
+                            assets: filtered
                         )
+                        newGroups.append(newGroup)
+                    }
+                } else {
+                    // Для скриншотов/записей экрана достаточно не выкидывать пустые
+                    if !filtered.isEmpty {
+                        let allSelected = filtered.allSatisfy { $0.isSelected }
+                        let newGroup = DuplicateAssetGroup(
+                            isSelectedAll: allSelected,
+                            assets: filtered
+                        )
+                        newGroups.append(newGroup)
                     }
                 }
             }
             
-            screenshots = newScreens
+            groupedPhotos = newGroups
+            
+            if groupedPhotos.isEmpty {
+                screenState = .allClean
+            }
+
+        case .screenshots, .screenRecords:
+            // Если это скриншоты или экранные записи – синхронизируем screenshots
+            if type == .screenshots || type == .screenRecords {
+                var newScreens: [ScreenshotsAsset] = []
+                
+                for oldGroup in screenshots {
+                    let filtered = oldGroup.groupAsset.filter { photoAsset in
+                        !deletedAssets.contains { $0.localIdentifier == photoAsset.asset.localIdentifier
+                        }
+                    }
+
+                    if filtered.count >= 1 {
+                        let allSelected = filtered.allSatisfy { $0.isSelected }
+                        
+                        let newGroup = ScreenshotsAsset(
+                            title: oldGroup.title,
+                            isSelectedAll: allSelected,
+                            groupAsset: filtered
+                        )
+                        newScreens.append(newGroup)
+                    } else {
+                        if !filtered.isEmpty {
+
+                            let allSelected = filtered.allSatisfy { $0.isSelected }
+                            newScreens.append(
+                                ScreenshotsAsset(
+                                    title: oldGroup.title,
+                                    isSelectedAll: allSelected,
+                                    groupAsset: filtered
+                                )
+                            )
+                        }
+                    }
+                }
+                
+                screenshots = newScreens
+                
+                if screenshots.isEmpty {
+                    screenState = .allClean
+                }
+            }
         }
-        
-        if groupedPhotos.isEmpty {
-            screenState = .allClean
-        }
-        
+                
         recalculateSelectedSize()
     }
     
@@ -898,8 +925,11 @@ final class SimilarAssetViewModel: ObservableObject {
             }
             
             self.totalPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.count)"
-//            self.selectedPhotos = "\(self.groupedPhotos.flatMap { $0.assets }.filter { $0.isSelected }.count)"
-            
+
+            checkStatusForSeselectAll()
+            recalculateSelectedSize()
+            isDataLoadedAndShow = true
+
             if !status.isScanning {
                 self.isAnalyzing = false
             } else {

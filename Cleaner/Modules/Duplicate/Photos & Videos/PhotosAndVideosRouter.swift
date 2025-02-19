@@ -16,7 +16,7 @@ final class PhotosAndVideosRouter: DefaultRouter {
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
         type: SimilarAssetType,
-        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void
+        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?, Bool) -> Void
     ) {
         guard let parentController else { return }
         let viewConreoller = SimilarAssetAssembly.openSimilarAsset(

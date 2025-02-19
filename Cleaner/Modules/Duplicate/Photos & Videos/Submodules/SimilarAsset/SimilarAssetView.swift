@@ -30,21 +30,21 @@ struct SimilarAssetView: View {
             case .loading:
                 makeLoaderView()
                 
-            case .content:
+            case .content, .allClean:
                 makePhotosListView()
                 makeBottomBar()
                 
-            case .allClean:
-                VStack {
-                    Spacer(minLength: .zero)
-                    
-                    makeAllCleanView()
-                        .background(Color.hexToColor(hex: "#F4F7FA"))
-                    
-                    Spacer(minLength: .zero)
-                    
-                    makeBackButtonView()
-                }.background(Color.hexToColor(hex: "#F4F7FA"))
+//            case .allClean:
+//                VStack {
+//                    Spacer(minLength: .zero)
+//                    
+//                    makeAllCleanView()
+//                        .background(Color.hexToColor(hex: "#F4F7FA"))
+//                    
+//                    Spacer(minLength: .zero)
+//                    
+//                    makeBackButtonView()
+//                }.background(Color.hexToColor(hex: "#F4F7FA"))
             }
             
             Spacer(minLength: .zero)
@@ -145,11 +145,12 @@ struct SimilarAssetView: View {
                 makeTopView()
                     .padding(.top, 24)
                     .padding(.horizontal, 16)
-                
+                    
                 makePhotosSections()
                     .padding(.top, 24)
                     .padding(.horizontal, 16)
             }
+            .frame(width: .screenWidth, alignment: .leading)
             .background(Color.hexToColor(hex: "#F4F7FA"))
             .onAppear {
                 print("Grouped Photos: \(viewModel.groupedPhotos)")
@@ -458,7 +459,7 @@ struct PhotoView_Previews: PreviewProvider {
                 service: SimilarAssetService(),
                 router: SimilarAssetRouter(),
                 type: .photos,
-                backTapAction: { _, _ in}
+                backTapAction: { _, _, _ in}
             )
         )
     }

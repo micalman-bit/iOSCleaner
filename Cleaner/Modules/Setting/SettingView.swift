@@ -67,67 +67,67 @@ struct SettingView: View {
 
     @ViewBuilder private func makeContentView() -> some View {
         ScrollView(showsIndicators: false) {
-            switch UserDefaultsService.isHaveSubscribe {
-            case true:
-                ZStack {
-                    Image("bgPremActive")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(.blue)
-                    
-                    HStack(spacing: .zero) {
-                        Text("Premium")
-                            .textStyle(.textBig, textColor: .Typography.textWhite)
-                        
-                        Spacer(minLength: .zero)
-                        
-                        HStack(spacing: 2) {
-                            Image("crown")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 16, height: 16)
-                            
-                            Text("Activated")
-                                .textStyle(.textBold, textColor: .Typography.textWhite)
-                        }
-                        .padding(vertical: 6, horizontal: 12)
-                        .background(Color.blue)
-                        .cornerRadius(20)
-                    }
-                    .padding(vertical: 18, horizontal: 20)
-                }
-                .frame(width: .screenWidth - 40, height: 60)
-                .padding(top: 24, horizontal: 20)
-            case false:
-                ZStack {
-                    Image("bgPrem")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundColor(.blue)
-
-                    HStack(spacing: .zero) {
-                        VStack(alignment: .leading, spacing: .zero) {
-                            Text("Try Clean Up Premium")
-                                .textStyle(.textBig, textColor: .Typography.textWhite)
-                            
-                            Text("Tap to claim your offer now!")
-                                .textStyle(.flatCount, textColor: .Typography.textWhite)
-                        }
-                        
-                        Spacer(minLength: .zero)
-                        
-                        Image("premiumSubSettings")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 62, height: 62)
-                        
-                    }
-                    .padding(vertical: 18, horizontal: 20)
-                }
-                .frame(width: .screenWidth - 40, height: 90)
-                .padding(top: 24, horizontal: 20)
-                    
-            }
+//            switch UserDefaultsService.isHaveSubscribe {
+//            case true:
+//                ZStack {
+//                    Image("bgPremActive")
+//                        .resizable()
+//                        .scaledToFit()
+//                        .foregroundColor(.blue)
+//                    
+//                    HStack(spacing: .zero) {
+//                        Text("Premium")
+//                            .textStyle(.textBig, textColor: .Typography.textWhite)
+//                        
+//                        Spacer(minLength: .zero)
+//                        
+//                        HStack(spacing: 2) {
+//                            Image("crown")
+//                                .resizable()
+//                                .scaledToFit()
+//                                .frame(width: 16, height: 16)
+//                            
+//                            Text("Activated")
+//                                .textStyle(.textBold, textColor: .Typography.textWhite)
+//                        }
+//                        .padding(vertical: 6, horizontal: 12)
+//                        .background(Color.blue)
+//                        .cornerRadius(20)
+//                    }
+//                    .padding(vertical: 18, horizontal: 20)
+//                }
+//                .frame(width: .screenWidth - 40, height: 60)
+//                .padding(top: 24, horizontal: 20)
+//            case false:
+//                ZStack {
+//                    Image("bgPrem")
+//                        .resizable()
+//                        .scaledToFit()
+//                        .foregroundColor(.blue)
+//
+//                    HStack(spacing: .zero) {
+//                        VStack(alignment: .leading, spacing: .zero) {
+//                            Text("Try Clean Up Premium")
+//                                .textStyle(.textBig, textColor: .Typography.textWhite)
+//                            
+//                            Text("Tap to claim your offer now!")
+//                                .textStyle(.flatCount, textColor: .Typography.textWhite)
+//                        }
+//                        
+//                        Spacer(minLength: .zero)
+//                        
+//                        Image("premiumSubSettings")
+//                            .resizable()
+//                            .scaledToFit()
+//                            .frame(width: 62, height: 62)
+//                        
+//                    }
+//                    .padding(vertical: 18, horizontal: 20)
+//                }
+//                .frame(width: .screenWidth - 40, height: 90)
+//                .padding(top: 24, horizontal: 20)
+//                    
+//            }
             
             ForEach(viewModel.listOfItems) { item in
                 HStack(spacing: .zero) {

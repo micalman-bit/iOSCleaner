@@ -12,7 +12,7 @@ enum SimilarAssetAssembly {
         photoOrVideo: [[PhotoAsset]]? = nil,
         screenshotsOrRecording: [ScreenshotsAsset]? = nil,
         type: SimilarAssetType,
-        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?) -> Void
+        backTapAction: @escaping ([DuplicateAssetGroup]?, [ScreenshotsAsset]?, Bool) -> Void
     ) -> UIViewController {
         let router = SimilarAssetRouter()
         let service = SimilarAssetService()

@@ -133,8 +133,12 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-    func didTapSmartAnalize() {        
-        router.openSimilarPhotos(screenType: .analyzeStorage)
+    func didTapSmartAnalize() {
+        if photoVideoManager.checkAuthorizationStatus() {
+            router.openSimilarPhotos(screenType: .analyzeStorage)
+        } else {
+            self.showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
+        }
     }
     
     func didTapContact() {
@@ -281,6 +285,7 @@ final class HomeViewModel: ObservableObject {
                     videoManagementService.startDuplicateScan()
                 } else {
                     self.isPhonoAndVideoAvailable = false
+                    self.isPhonoAndVideoLoaderActive = false
                     self.showSettingsAlert("To review similar photos and videos, please grant \"Photo Manager\" permission to access your gallery.")
                 }
             }
