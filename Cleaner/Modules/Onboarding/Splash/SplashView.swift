@@ -9,20 +9,17 @@ import SwiftUI
 
 struct SplashView: View {
     // MARK: - Private Properties
-    
     @ObservedObject private var viewModel: SplashViewModel
     @State private var progress: CGFloat = 0.0 // Для управления анимацией лоадера
 
     // MARK: - Init
-    
     init(viewModel: SplashViewModel) {
         self.viewModel = viewModel
     }
     
     // MARK: - Body
-    
     var body: some View {
-        VStack(spacing: .zero) {
+        VStack(spacing: 0) {
             
             VStack(alignment: .center, spacing: 52) {
                 Image("app_icon")
@@ -30,7 +27,7 @@ struct SplashView: View {
                     .scaledToFill()
                     .frame(width: 110, height: 110)
                     .clipped()
-                    .padding(top: 171)
+                    .padding(.top, 171)
                 
                 Text("Photo Master Assistant")
                     .font(.system(size: 32))
@@ -39,14 +36,14 @@ struct SplashView: View {
                     .multilineTextAlignment(.center)
             }
             
-            Spacer(minLength: .zero)
+            Spacer()
             
             // Лоадер
             ZStack {
                 Capsule()
                     .fill(Color.white.opacity(0.2))
                     .frame(height: 10)
-
+                
                 GeometryReader { geometry in
                     Capsule()
                         .fill(Color.blue)
@@ -54,27 +51,35 @@ struct SplashView: View {
                         .animation(.easeInOut(duration: 2.0), value: progress)
                 }
             }
-            .padding(bottom: 29, horizontal: 106.5)
-            .onAppear {
-                startProgressAnimation()
-            }
+            .padding(.bottom, 29)
+            .padding(.horizontal, 106.5)
             .frame(height: 8)
-
         }
-        .background(Color.Background.whiteBlue)
+        .background(Color("whiteBlue"))
+        .onAppear {
+            startProgressAnimation()
+        }
+        // SwiftUI Alert, который отображается если showTrackingAlert == true
+        .alert(isPresented: $viewModel.showTrackingAlert) {
+            Alert(
+                title: Text("Allow Tracking?"),
+                message: Text("Please grant access to tracking for the best experience."),
+                primaryButton: .default(Text("Open Settings"), action: {
+                    viewModel.openSettings()
+                }),
+                secondaryButton: .cancel(Text("Cancel"))
+            )
+        }
     }
     
+    // MARK: - Private Methods
     private func startProgressAnimation() {
         progress = 1.0
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            requestTrackingPermission()
-        }
-    }
-    
-    private func requestTrackingPermission() {
-        viewModel.requestTrackingPermission {
-            viewModel.openNextScreen()
+            viewModel.requestTrackingPermission {
+                viewModel.openNextScreen()
+            }
         }
     }
 }
@@ -82,10 +87,7 @@ struct SplashView: View {
 struct SplashView_Previews: PreviewProvider {
     static var previews: some View {
         SplashView(
-            viewModel: SplashViewModel(
-//                service: SplashService(),
-                router: SplashRouter()
-            )
+            viewModel: SplashViewModel(router: SplashRouter())
         )
     }
 }

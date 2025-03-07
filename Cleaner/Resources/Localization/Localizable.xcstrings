@@ -1,0 +1,201 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "/ %@ GB" : {
+
+    },
+    "%@ GB" : {
+
+    },
+    "%@ photos" : {
+
+    },
+    "%lld similar" : {
+
+    },
+    "%lld%%" : {
+
+    },
+    "$0.77/week" : {
+
+    },
+    "$39.99/year" : {
+
+    },
+    "0%" : {
+
+    },
+    "3 DAYS FREE" : {
+
+    },
+    "3-DAY FREE TRIAL" : {
+
+    },
+    "Add your Model" : {
+
+    },
+    "Allow Tracking?" : {
+
+    },
+    "Analysis in\nprogress" : {
+
+    },
+    "available" : {
+
+    },
+    "Back" : {
+
+    },
+    "BACK TO HOME" : {
+
+    },
+    "Best" : {
+
+    },
+    "BEST OFFER" : {
+
+    },
+    "Calendar" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "CANCEL ANYTIME" : {
+
+    },
+    "CLEAN UP YOUR" : {
+
+    },
+    "Contact" : {
+
+    },
+    "Contacts" : {
+
+    },
+    "Continue" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Deselect All" : {
+
+    },
+    "Duplicate Contacts" : {
+
+    },
+    "Duplicates will be removed" : {
+
+    },
+    "Everything is well-\norganized!" : {
+
+    },
+    "Free Trial Enabled" : {
+
+    },
+    "GET STARTED" : {
+
+    },
+    "It won't take long..." : {
+
+    },
+    "Key" : {
+      "comment" : "zbfcxzfsbx",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TEST"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SPANISH"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JAPAN"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portugal"
+          }
+        }
+      }
+    },
+    "Merged Contact" : {
+
+    },
+    "Need access, click to allow" : {
+
+    },
+    "Next" : {
+
+    },
+    "NO PAYMENT NOW" : {
+
+    },
+    "No unnecessary files here. Your device is well-organized and optimized in this area." : {
+
+    },
+    "Open Settings" : {
+
+    },
+    "Photo & Video" : {
+
+    },
+    "Photo Master Assistant" : {
+
+    },
+    "Please grant access to tracking for the best experience." : {
+
+    },
+    "Privacy Policy" : {
+
+    },
+    "Restore" : {
+
+    },
+    "Select All" : {
+
+    },
+    "Seselect All" : {
+
+    },
+    "Setting" : {
+
+    },
+    "STORAGE" : {
+
+    },
+    "Terms of Use" : {
+
+    },
+    "then $6.99/week" : {
+
+    },
+    "Yearly Access" : {
+
+    },
+    "Бестик" : {
+
+    },
+    "Введите сообщение..." : {
+
+    },
+    "Здесь ты можешь выбрать параметрам для анализа текста, они помогут закрыть ебало тавоему апоненту" : {
+
+    }
+  },
+  "version" : "1.0"
+}

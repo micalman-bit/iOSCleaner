@@ -14,8 +14,8 @@
             filePath = "Cleaner/App/AppDelegate.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "19"
-            endingLineNumber = "19"
+            startingLineNumber = "20"
+            endingLineNumber = "20"
             landmarkName = "application(_:didFinishLaunchingWithOptions:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -492,50 +492,6 @@
             endingLineNumber = "464"
             landmarkName = "recalculateSelectedSize()"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "AE413C70-97A0-4A9A-9D6E-4F11F84DFC10 - 986ed5ce3d2fc2df"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "464"
-                  endingLineNumber = "464">
-               </Location>
-               <Location
-                  uuid = "AE413C70-97A0-4A9A-9D6E-4F11F84DFC10 - 6bc5089eee20ebb1"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #5 (Swift.String) -&gt; () in Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "464"
-                  endingLineNumber = "464">
-               </Location>
-               <Location
-                  uuid = "AE413C70-97A0-4A9A-9D6E-4F11F84DFC10 - 96cf296f35388524"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 @Swift.MainActor () -&gt; () in closure #5 (Swift.String) -&gt; () in Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "464"
-                  endingLineNumber = "464">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -664,50 +620,6 @@
             endingLineNumber = "460"
             landmarkName = "recalculateSelectedSize()"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "3CBE165D-4116-4935-9E94-B17C591C5484 - 986ed5ce3d2fc25b"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "460"
-                  endingLineNumber = "460">
-               </Location>
-               <Location
-                  uuid = "3CBE165D-4116-4935-9E94-B17C591C5484 - dec5ff1270a19774"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (Cleaner.DuplicateAssetGroup) -&gt; Swift.Array&lt;Cleaner.PhotoAsset&gt; in Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "460"
-                  endingLineNumber = "460">
-               </Location>
-               <Location
-                  uuid = "3CBE165D-4116-4935-9E94-B17C591C5484 - 59ad1e2180b358f9"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #2 (Cleaner.PhotoAsset) -&gt; Swift.Bool in Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "460"
-                  endingLineNumber = "460">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -724,50 +636,6 @@
             endingLineNumber = "462"
             landmarkName = "recalculateSelectedSize()"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "81B1B39C-E980-437B-8B43-DA48C3554198 - 986ed5ce3d2fc299"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "462"
-                  endingLineNumber = "462">
-               </Location>
-               <Location
-                  uuid = "81B1B39C-E980-437B-8B43-DA48C3554198 - a7b07046bf7640f2"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #3 (Cleaner.ScreenshotsAsset) -&gt; Swift.Array&lt;Cleaner.PhotoAsset&gt; in Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "462"
-                  endingLineNumber = "462">
-               </Location>
-               <Location
-                  uuid = "81B1B39C-E980-437B-8B43-DA48C3554198 - e2afdcc030040439"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #4 (Cleaner.PhotoAsset) -&gt; Swift.Bool in Cleaner.SimilarAssetViewModel.recalculateSelectedSize() -&gt; ()"
-                  moduleName = "Cleaner.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/andreysamchenko/Desktop/iOSCleaner/Cleaner/Modules/Duplicate/Photos%20&amp;%20Videos/Submodules/SimilarAsset/SimilarAssetViewModel.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "462"
-                  endingLineNumber = "462">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -877,6 +745,70 @@
             startingLineNumber = "459"
             endingLineNumber = "459"
             landmarkName = "recalculateSelectedSize()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "EA704E86-5BDA-4758-B303-032F1FC74426"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Cleaner/Modules/Duplicate/Photos &amp; Videos/PhotosAndVideosViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "582"
+            endingLineNumber = "582"
+            landmarkName = "updateSceenRecordsPanel()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "59EBDFF8-93ED-46DD-AB0A-A47E019E611B"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Cleaner/Modules/Bestik/Chat/ChatViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "143"
+            endingLineNumber = "143"
+            landmarkName = "extractTextFromImage(_:completion:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "042AEFAD-C690-4EA7-AFC9-A72E7F2EFCB4"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Cleaner/Modules/Bestik/Chat/ChatViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "93"
+            endingLineNumber = "93"
+            landmarkName = "sendMessage(_:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "E95B54A0-CA89-4784-A330-E072BFEE6FE5"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Cleaner/Modules/Bestik/Chat/ChatService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "48"
+            endingLineNumber = "48"
+            landmarkName = "getMethod(prompt:completion:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

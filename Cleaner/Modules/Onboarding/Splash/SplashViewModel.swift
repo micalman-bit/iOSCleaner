@@ -8,40 +8,60 @@
 import Foundation
 import AdSupport
 import AppTrackingTransparency
+import UIKit
 
 final class SplashViewModel: ObservableObject {
     
     // MARK: - Private Properties
-
     private let router: SplashRouter
-
-    init(
-        router: SplashRouter
-    ) {
+    
+    // Флаг для показа алерта в SwiftUI
+    @Published var showTrackingAlert: Bool = false
+    
+    init(router: SplashRouter) {
         self.router = router
     }
     
     // MARK: - Public Method
-
     func requestTrackingPermission(completion: @escaping () -> Void) {
-        // Запрос на разрешение
         ATTrackingManager.requestTrackingAuthorization { status in
             DispatchQueue.main.async {
-                completion()
+                switch status {
+                case .authorized:
+                    print("✅ Tracking authorized")
+                    let idfa = ASIdentifierManager.shared().advertisingIdentifier
+                    print("IDFA: \(idfa)")
+                    completion()
+                    
+                case .denied, .notDetermined, .restricted:
+                    print("❌ Tracking not authorized: \(status)")
+                    self.showTrackingAlert = true
+                    
+                @unknown default:
+                    print("⚠️ Unknown tracking status")
+                    self.showTrackingAlert = true
+                }
             }
         }
     }
-
+    
     func openNextScreen() {
+        router.openOnboarding()
         if UserDefaultsService.isPassOnboarding {
             if UserDefaultsService.isHaveSubscribe {
-                router.openHome()
+                 router.openHome()
             } else {
-                router.openHome()
-//                router.openPaywall()
+                 router.openHome()
+//                 router.openPaywall()
             }
         } else {
-            router.openOnboarding()
+             router.openOnboarding()
+        }
+    }
+    
+    func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
     }
 }

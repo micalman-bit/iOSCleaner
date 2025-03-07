@@ -181,7 +181,8 @@ struct HomeView: View {
                     .frame(width: 24, height: 24)
                     .clipped()
                 
-                Text("SMART ANALYZE")
+                Text("Key")
+//                Text("LOLKEK")
                     .textStyle(.textBig, textColor: .Typography.textWhite)
                 
             }
@@ -212,132 +213,135 @@ struct HomeView: View {
     }
     
     @ViewBuilder private func makeButtonListView() -> some View {
-        VStack(spacing: 20) {
-            
-            ///  Photo & Video
-            VStack(spacing: .zero) {
-                HStack {
-                    Image("photoLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 40, height: 40)
-                        .clipped()
-                    
-                    switch viewModel.isPhonoAndVideoAvailable {
-                    case true:
-                        HStack(spacing: 10) {
-                            Text("Photo & Video")
-                                .textStyle(.h1, textColor: .Typography.textDark)
-                            
-                            Spacer(minLength: .zero)
-//                            Text(viewModel.totalFilesCount)
-//                                .font(.system(size: 17, weight: .regular))
-//                                .foregroundColor(.Typography.textDark)
-
-                        }.frame(maxWidth: .infinity)
-                    case false:
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Photo & Video")
-                                .textStyle(.h1, textColor: .Typography.textDark)
-                            
-                            Text("Need access, click to allow")
-                                .textStyle(.text, textColor: .Typography.textGray)
-                            
+        
+        ScrollView {
+            VStack(spacing: 20) {
+                
+                ///  Photo & Video
+                VStack(spacing: .zero) {
+                    HStack {
+                        Image("photoLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 40, height: 40)
+                            .clipped()
+                        
+                        switch viewModel.isPhonoAndVideoAvailable {
+                        case true:
+                            HStack(spacing: 10) {
+                                Text("Photo & Video")
+                                    .textStyle(.h1, textColor: .Typography.textDark)
+                                
+                                Spacer(minLength: .zero)
+                                //                            Text(viewModel.totalFilesCount)
+                                //                                .font(.system(size: 17, weight: .regular))
+                                //                                .foregroundColor(.Typography.textDark)
+                                
+                            }.frame(maxWidth: .infinity)
+                        case false:
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Photo & Video")
+                                    .textStyle(.h1, textColor: .Typography.textDark)
+                                
+                                Text("Need access, click to allow")
+                                    .textStyle(.text, textColor: .Typography.textGray)
+                                
+                            }
                         }
+                        
+                        Spacer()
+                        
+                        makeButtonOfItemView(
+                            .photoVideo,
+                            isEnabled: viewModel.isPhonoAndVideoAvailable,
+                            isLoading: viewModel.isPhonoAndVideoLoaderActive,
+                            title: viewModel.phonoAndVideoGBText
+                        )
                     }
                     
-                    Spacer()
-                    
-                    makeButtonOfItemView(
-                        .photoVideo,
-                        isEnabled: viewModel.isPhonoAndVideoAvailable,
-                        isLoading: viewModel.isPhonoAndVideoLoaderActive,
-                        title: viewModel.phonoAndVideoGBText
-                    )
-                }
+                    Divider()
+                        .padding(top: 32)
+                }.asButton(style: .opacity, action: viewModel.didTapPhotoAndVideo)
                 
-                Divider()
-                    .padding(top: 32)
-            }.asButton(style: .opacity, action: viewModel.didTapPhotoAndVideo)
-            
-            /// Contact
-            VStack(spacing: .zero) {
-                HStack {
-                    Image("contactLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 40, height: 40)
-                        .clipped()
-                    
-                    switch viewModel.isСontactsAvailable {
-                    case true:
-                        Text("Contact")
-                            .textStyle(.h1, textColor: .Typography.textDark)
-                    case false:
-                        VStack(alignment: .leading, spacing: 2) {
+                /// Contact
+                VStack(spacing: .zero) {
+                    HStack {
+                        Image("contactLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 40, height: 40)
+                            .clipped()
+                        
+                        switch viewModel.isСontactsAvailable {
+                        case true:
                             Text("Contact")
                                 .textStyle(.h1, textColor: .Typography.textDark)
-
-                            Text("Need access, click to allow")
-                                .textStyle(.text, textColor: .Typography.textGray)
-                            
+                        case false:
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Contact")
+                                    .textStyle(.h1, textColor: .Typography.textDark)
+                                
+                                Text("Need access, click to allow")
+                                    .textStyle(.text, textColor: .Typography.textGray)
+                                
+                            }
                         }
+                        
+                        Spacer()
+                        
+                        makeButtonOfItemView(
+                            .contact,
+                            isEnabled: viewModel.isСontactsAvailable,
+                            isLoading: viewModel.isСontactsLoaderActive,
+                            title: viewModel.contactsText
+                        )
                     }
                     
-                    Spacer()
-
-                    makeButtonOfItemView(
-                        .contact,
-                        isEnabled: viewModel.isСontactsAvailable,
-                        isLoading: viewModel.isСontactsLoaderActive,
-                        title: viewModel.contactsText
-                    )
-                }
+                    Divider()
+                        .padding(top: 32)
+                }.asButton(style: .opacity, action: viewModel.didTapContact)
                 
-                Divider()
-                    .padding(top: 32)
-            }.asButton(style: .opacity, action: viewModel.didTapContact)
-
-            /// Calendar
-            VStack(spacing: .zero) {
-                HStack {
-                    Image("calendarLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 40, height: 40)
-                        .clipped()
-                    
-                    switch viewModel.isCalendarAvailable {
-                    case true:
-                        Text("Calendar")
-                            .textStyle(.h1, textColor: .Typography.textDark)
-                    case false:
-                        VStack(alignment: .leading, spacing: 2) {
+                /// Calendar
+                VStack(spacing: .zero) {
+                    HStack {
+                        Image("calendarLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 40, height: 40)
+                            .clipped()
+                        
+                        switch viewModel.isCalendarAvailable {
+                        case true:
                             Text("Calendar")
                                 .textStyle(.h1, textColor: .Typography.textDark)
-                            
-                            Text("Need access, click to allow")
-                                .textStyle(.text, textColor: .Typography.textGray)
+                        case false:
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Calendar")
+                                    .textStyle(.h1, textColor: .Typography.textDark)
+                                
+                                Text("Need access, click to allow")
+                                    .textStyle(.text, textColor: .Typography.textGray)
+                            }
                         }
+                        
+                        Spacer(minLength: .zero)
+                        
+                        makeButtonOfItemView(
+                            .calendar,
+                            isEnabled: viewModel.isCalendarAvailable,
+                            isLoading: viewModel.isCalendarLoaderActive,
+                            title: viewModel.сalendarText
+                        )
                     }
                     
-                    Spacer(minLength: .zero)
-                    
-                    makeButtonOfItemView(
-                        .calendar,
-                        isEnabled: viewModel.isCalendarAvailable,
-                        isLoading: viewModel.isCalendarLoaderActive,
-                        title: viewModel.сalendarText
-                    )
-                }
-                
-                Divider()
-                    .padding(top: 32)
-            }.asButton(style: .opacity, action: viewModel.didTapCalendar)
+                    Divider()
+                        .padding(top: 32)
+                }.asButton(style: .opacity, action: viewModel.didTapCalendar)
+            }
+            .padding(top: 31, horizontal: 23)
+            .background(Color.white)
+            .cornerRadius(24, corners: [.topLeft, .topRight])
         }
-        .padding(top: 31, horizontal: 23)
-        .background(Color.white)
-        .cornerRadius(24, corners: [.topLeft, .topRight])
     }
     
     // MARK: - Button List View
